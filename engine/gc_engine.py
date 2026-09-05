@@ -74,6 +74,7 @@ class Engine:
         self.nstate = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "b": 0.0, "r": 0.0, "wmod": 0.0}
         self.rng = np.random.default_rng()
         self.master = 0.0      # smoothed master gain (0..1) for fades
+        self.hits = []         # strong hits since last drain, for the visual pulse
         self.lock = threading.Lock()
 
     # -------------------------------------------------- state changes
@@ -174,7 +175,9 @@ class Engine:
             step = 60.0 / pat["bpm"] * SR / (4 if not pat.get("matra") else 1)
             while self.next_step < t0 + n:
                 for (si, vk, amp) in pat["hits"]:
-                    if si == self.step_i: self.events.append((self.next_step, vk, amp))
+                    if si == self.step_i:
+                        self.events.append((self.next_step, vk, amp))
+                        if amp >= .7 and vk in ("dha", "thump"): self.hits.append(amp)
                 self.step_i = (self.step_i + 1) % pat["steps"]
                 self.next_step += int(step)
             keep = []
@@ -288,8 +291,9 @@ def main():
             elif c == "quit": os._exit(0)
             emit(eng.status())
         os._exit(0)
+    elock = threading.Lock()
     def emit(o):
-        sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
+        with elock: sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
     threading.Thread(target=reader, daemon=True).start()
     emit({"ready": True, **eng.status()})
     proc = None; last = 0
@@ -300,6 +304,8 @@ def main():
                 except FileNotFoundError: emit({"error": "player not found: " + " ".join(player_cmd())}); eng.stop(); time.sleep(1); continue
             try: proc.stdin.write(eng.block().tobytes())
             except BrokenPipeError: proc = None
+            if eng.hits:
+                a = max(eng.hits); eng.hits = []; emit({"hit": round(a, 2)})
         else:
             if proc is not None:
                 try: proc.stdin.close()

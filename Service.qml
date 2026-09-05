@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
 
@@ -46,8 +47,13 @@ Item {
   property string noise: "Off"
   property var nature: []
   readonly property bool windowOpen: win.visible
+  property int visModel: 0               // 0 field · 1 lava · 2 flow
+  property int screensaverAfter: 0       // seconds idle before the fullscreen visual; 0 = off
+  readonly property bool saverOpen: saverLoader.active
+  signal hit(real amp)
 
   function applyStatus(s) {
+    if ("hit" in s) { root.hit(Number(s.hit) || 0); return }
     if (s.error) { console.warn("groundcontrol engine:", s.error); root.setupMessage = String(s.error); root.setupNeeded = true; return }
     if (s.ready === true) { root.ready = true; root.setupNeeded = false }
     if ("on" in s) root.playing = s.on === true
@@ -118,6 +124,8 @@ Item {
     function stop(): void { root.stop() }
     function playpause(): void { root.togglePlay() }
     function scene(name: string): void { root.setScene(name) }
+    function screensaver(): void { root.openSaver() }
+    function visual(model: string): void { var m = { field: 0, lava: 1, flow: 2 }[String(model).toLowerCase()]; if (m !== undefined) root.visModel = m }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
@@ -143,6 +151,54 @@ Item {
     var p = breathPhases; if (!p) return ""
     var total = p[0] + p[1] + p[2] + p[3]; var t = breathT % total
     if (t < p[0]) return "in"; t -= p[0]; if (t < p[1]) return "hold"; t -= p[1]; if (t < p[2]) return "out"; return "hold"
+  }
+
+  // ---- screensaver: the same visual, fullscreen on every monitor, closed by any input
+  function openSaver() { saverLoader.active = true }
+  function closeSaver() { saverLoader.active = false }
+
+  IdleMonitor {
+    enabled: root.screensaverAfter > 0
+    timeout: root.screensaverAfter
+    respectInhibitors: true
+    onIsIdleChanged: if (isIdle && root.screensaverAfter > 0) root.openSaver()
+  }
+
+  Loader {
+    id: saverLoader
+    active: false
+    sourceComponent: Variants {
+      model: Quickshell.screens
+      delegate: PanelWindow {
+        required property var modelData
+        screen: modelData
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: Color.background
+        WlrLayershell.namespace: "undertone-screensaver"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+        exclusionMode: ExclusionMode.Ignore
+
+        Visual {
+          id: saverVisual
+          anchors.fill: parent
+          model: root.visModel
+          beat: root.beat; base: root.base
+          colL: Color.accent; colR: Color.urgent; colF: Color.background
+          breathLevel: root.breathPhases ? root.breathLevel : null
+          bufferWidth: 240
+          fps: 30
+        }
+        Connections { target: root; function onHit(amp) { saverVisual.pulse(amp) } }
+
+        // the 640-ms grace stops the click/keypress that opened it from closing it
+        Timer { id: armed; interval: 640; running: true }
+        Item { anchors.fill: parent; focus: true; Keys.onPressed: function(e) { if (!armed.running) root.closeSaver(); e.accepted = true } }
+        MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.BlankCursor
+          onPositionChanged: if (!armed.running) root.closeSaver()
+          onPressed: if (!armed.running) root.closeSaver() }
+      }
+    }
   }
 
   // ---- control panel
@@ -195,6 +251,37 @@ Item {
               Button { text: "Install python-numpy"; onClicked: Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "omarchy-pkg-add python-numpy"]) }
               Button { text: "Retry"; onClicked: root.retrySetup() }
             }
+          }
+        }
+
+        // visual
+        Rectangle {
+          Layout.fillWidth: true
+          implicitHeight: Math.round(width * 0.42)
+          radius: Style.cornerRadius; color: Color.background; clip: true
+          Visual {
+            id: panelVisual
+            anchors.fill: parent
+            model: root.visModel
+            beat: root.beat; base: root.base
+            colL: Color.accent; colR: Color.urgent; colF: Color.background
+            breathLevel: root.breathPhases ? root.breathLevel : null
+            running: win.visible && !root.saverOpen
+          }
+          Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }
+        }
+        RowLayout {
+          Layout.fillWidth: true; spacing: Style.space(6)
+          Repeater {
+            model: ["Field", "Lava", "Flow"]
+            delegate: Button { required property var modelData; required property int index; text: modelData; selected: root.visModel === index; onClicked: root.visModel = index }
+          }
+          Item { Layout.fillWidth: true }
+          Button { text: "Screensaver"; tooltipText: "Fullscreen on every monitor; any key or mouse movement closes it"; onClicked: root.openSaver() }
+          Text { text: "idle →"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Repeater {
+            model: [0, 120, 300, 600]
+            delegate: Button { required property var modelData; text: modelData === 0 ? "Off" : (modelData / 60) + " min"; selected: root.screensaverAfter === modelData; onClicked: root.screensaverAfter = modelData }
           }
         }
 
@@ -365,7 +452,7 @@ Item {
             text: "The full instrument — interference-field visuals, Lava and Flow, saved mixes, share links, Tune to a place, MIDI Listen — lives in the browser."
             color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
           }
-          Button { text: "Open Ground Control on the web"; onClicked: Quickshell.execDetached(["omarchy-launch-browser", root.webUrl]) }
+          Button { text: "Open Ground Control on the web"; onClicked: Qt.openUrlExternally(root.webUrl) }
         }
       }
     }
