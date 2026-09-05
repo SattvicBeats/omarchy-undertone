@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""Ground Control native engine — binaural pair, tanpura drone, taals, noise colours,
+weather layers, sleep timer. numpy only; audio goes to PipeWire via pw-cat.
+
+Control: JSON lines on stdin.   Status: JSON lines on stdout (1 Hz + after every change).
+  {"cmd":"play"} {"cmd":"stop"} {"cmd":"toggle"} {"cmd":"status"} {"cmd":"quit"}
+  {"cmd":"scene","name":"Rest"}
+  {"cmd":"set","beat":7.83,"base":136,"vol":.35,"drone":.5,"rhythm":"Keherwa",
+               "noise":"Pink","nlvl":.35,"nature":["Rain","Wind"],"timer":45,"breath":"Coherent"}
+Test:  gc_engine.py --out mix.wav --seconds 6 --scene Flow
+"""
+import sys, os, json, time, math, threading, subprocess, argparse, wave, struct
+import numpy as np
+
+SR = 48000
+BLOCK = 1024
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = json.load(open(os.path.join(HERE, "data.json")))
+RHY = {r["name"]: r["pat"] for r in DATA["rhythms"]}
+SCN = {s["name"]: s["set"] for s in DATA["scenes"]}
+
+# ------------------------------------------------------------------ helpers
+def leaky(x, a, y0):
+    """y[n] = a*y[n-1] + x[n], vectorised for one block. Returns (y, last)."""
+    # a^-k overflows for fast poles, so work in chunks short enough that a^-m < 1e100
+    m = max(8, min(len(x), int(230 / -math.log(a))))
+    y = np.empty(len(x))
+    for i in range(0, len(x), m):
+        xs = x[i:i + m]; k = np.arange(len(xs)); ak = a ** k
+        ys = ak * (a * y0 + np.cumsum(xs / ak))   # a^k * (a*y0 + sum x[j] a^-j)
+        y[i:i + m] = ys; y0 = float(ys[-1])
+    return y, y0
+
+def env_exp(n, tau):
+    return np.exp(-np.arange(n) / (SR * tau))
+
+def voice(kind):
+    """Precomputed one-shot percussion voices (mono float32)."""
+    rng = np.random.default_rng(7)
+    if kind == "thump":              # heartbeat: 55 Hz sine, fast decay
+        n = int(SR * .3); t = np.arange(n) / SR
+        return (np.sin(2 * np.pi * 55 * t) * env_exp(n, .07)).astype(np.float32)
+    if kind == "dha":                # bayan-ish: pitch sweep 160→85 Hz
+        n = int(SR * .45); t = np.arange(n) / SR
+        f = 85 + 75 * np.exp(-t / .06)
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        return (np.sin(ph) * env_exp(n, .12) * .9).astype(np.float32)
+    if kind == "tin":                # dayan ring: 620 Hz + 2nd partial, medium decay
+        n = int(SR * .35); t = np.arange(n) / SR
+        return ((np.sin(2 * np.pi * 620 * t) + .35 * np.sin(2 * np.pi * 1240 * t)) * env_exp(n, .09) * .5).astype(np.float32)
+    if kind == "na":                 # short bright tap: filtered noise burst
+        n = int(SR * .06)
+        w = rng.standard_normal(n)
+        hp, _ = leaky(w, .6, 0.0); hp = w - hp * .4
+        return (hp * env_exp(n, .012) * .35).astype(np.float32)
+    raise KeyError(kind)
+
+VOICES = {k: voice(k) for k in ("thump", "dha", "tin", "na")}
+
+# ------------------------------------------------------------------ engine
+class Engine:
+    def __init__(self):
+        self.S = dict(beat=10.0, base=196.0, vol=.35, drone=.5, rhythm="Silent", breath="No pacer",
+                      noise="Off", nlvl=.4, nature=[], timer=0, scene=None)
+        self.on = False
+        self.t0 = 0            # absolute sample counter while on
+        self.timer_end = 0     # absolute sample when timer stops
+        self.ph = [0.0, 0.0]   # binaural phases
+        self.plucks = []       # (start_sample, freq, amp)
+        self.next_pluck = 0
+        self.events = []       # (start_sample, voice_key, amp)
+        self.step_i = 0
+        self.next_step = 0
+        self.nstate = {"p1": 0.0, "p2": 0.0, "p3": 0.0, "b": 0.0, "r": 0.0, "wmod": 0.0}
+        self.rng = np.random.default_rng()
+        self.master = 0.0      # smoothed master gain (0..1) for fades
+        self.lock = threading.Lock()
+
+    # -------------------------------------------------- state changes
+    def apply(self, d):
+        with self.lock:
+            for k in ("beat", "base", "vol", "drone", "nlvl", "timer"):
+                if k in d and d[k] is not None: self.S[k] = float(d[k])
+            for k in ("rhythm", "breath", "noise"):
+                if k in d and d[k] in ({r["name"] for r in DATA["rhythms"]} | {b["name"] for b in DATA["breaths"]} | set(DATA["noises"])):
+                    self.S[k] = d[k]
+            if "nature" in d: self.S["nature"] = [n for n in (d["nature"] or []) if n in DATA["nature"]]
+            if "scene" in d: self.S["scene"] = d["scene"]
+            if "rhythm" in d: self.step_i = 0; self.next_step = self.t0
+            if "timer" in d: self.arm_timer()
+
+    def scene(self, name):
+        st = SCN.get(name)
+        if not st: return False
+        d = {k: st.get(k) for k in ("beat", "base", "drone", "rhythm", "breath", "noise", "nlvl", "nature", "timer")}
+        d["scene"] = name
+        self.apply(d); return True
+
+    def arm_timer(self):
+        self.timer_end = (self.t0 + int(self.S["timer"] * 60 * SR)) if (self.on and self.S["timer"] > 0) else 0
+
+    def play(self):
+        with self.lock:
+            if self.on: return
+            self.on = True; self.t0 = 0; self.plucks = []; self.events = []
+            self.next_pluck = 0; self.step_i = 0; self.next_step = 0
+            self.arm_timer()
+
+    def stop(self):
+        with self.lock: self.on = False; self.timer_end = 0
+
+    def timer_left(self):
+        return max(0, (self.timer_end - self.t0) / SR) if (self.on and self.timer_end) else 0
+
+    def status(self):
+        return {"on": self.on, "timerLeft": int(self.timer_left()), "beat": self.S["beat"], "base": self.S["base"],
+                "scene": self.S["scene"], "rhythm": self.S["rhythm"], "breath": self.S["breath"],
+                "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
+                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"]}
+
+    # -------------------------------------------------- synthesis
+    def block(self):
+        """Return (BLOCK,2) float32. Called continuously; silent when off."""
+        with self.lock:
+            S = dict(self.S); on = self.on
+        n = BLOCK
+        out = np.zeros((n, 2), np.float32)
+        target = 1.0 if on else 0.0
+        if on and self.timer_end and self.t0 > self.timer_end - 60 * SR:
+            target = max(0.0, (self.timer_end - self.t0) / (60 * SR))
+            if self.t0 >= self.timer_end: self.stop(); target = 0.0
+        if not on and self.master < 1e-4:
+            return out
+        t0 = self.t0
+        t = np.arange(n) / SR
+
+        # binaural pair: L = base, R = base + beat (hard L/R, as in the web app)
+        fL, fR = S["base"], S["base"] + S["beat"]
+        phL = self.ph[0] + 2 * np.pi * fL * t
+        phR = self.ph[1] + 2 * np.pi * fR * t
+        self.ph[0] = (phL[-1] + 2 * np.pi * fL / SR) % (2 * np.pi)
+        self.ph[1] = (phR[-1] + 2 * np.pi * fR / SR) % (2 * np.pi)
+        out[:, 0] += .28 * np.sin(phL); out[:, 1] += .28 * np.sin(phR)
+
+        # tanpura: four strings (Pa, Sa', Sa', Sa) plucked in a 0.55 s cycle, additive with jawari-ish bright decay
+        if S["drone"] > 0:
+            sa = S["base"]
+            strings = [sa * 1.5, sa * 2, sa * 2, sa]
+            while self.next_pluck < t0 + n:
+                i = (self.next_pluck // int(.55 * SR)) % 4
+                self.plucks.append((self.next_pluck, strings[i], .16 * S["drone"]))
+                self.next_pluck += int(.55 * SR)
+            keep = []
+            drone = np.zeros(n)
+            for (st, f, a) in self.plucks:
+                if st > t0 + n: keep.append((st, f, a)); continue
+                tt = (np.arange(t0, t0 + n) - st) / SR
+                m = tt >= 0
+                if tt[-1] > 4.0: continue
+                keep.append((st, f, a))
+                tm = tt[m]
+                sig = np.zeros(len(tm))
+                for h in range(1, 9):
+                    sig += (1.0 / h) * np.sin(2 * np.pi * f * h * tm) * np.exp(-tm * (0.9 + .35 * h))
+                # jawari: a shimmering high band that decays more slowly than a plain string would
+                sig += .12 * np.sin(2 * np.pi * f * 5.02 * tm) * np.exp(-tm * 1.2)
+                drone[m] += a * sig * (1 - np.exp(-tm / .004))
+            self.plucks = keep
+            out[:, 0] += drone; out[:, 1] += drone
+
+        # rhythm
+        pat = RHY.get(S["rhythm"])
+        if pat:
+            step = 60.0 / pat["bpm"] * SR / (4 if not pat.get("matra") else 1)
+            while self.next_step < t0 + n:
+                for (si, vk, amp) in pat["hits"]:
+                    if si == self.step_i: self.events.append((self.next_step, vk, amp))
+                self.step_i = (self.step_i + 1) % pat["steps"]
+                self.next_step += int(step)
+            keep = []
+            for (st, vk, amp) in self.events:
+                v = VOICES[vk]
+                a0 = st - t0
+                if a0 >= n: keep.append((st, vk, amp)); continue
+                b0 = max(0, -a0); b1 = min(len(v), n - a0)
+                if b1 <= b0: continue
+                seg = v[b0:b1] * amp * .8
+                out[max(0, a0):max(0, a0) + len(seg), 0] += seg
+                out[max(0, a0):max(0, a0) + len(seg), 1] += seg
+                if b1 < len(v): keep.append((st, vk, amp))
+            self.events = keep
+
+        # noise colours (independent L/R for width)
+        nz = None
+        if S["noise"] != "Off" and S["nlvl"] > 0:
+            w = self.rng.standard_normal((n, 2))
+            if S["noise"] == "White": nz = w * .12
+            else:
+                st = self.nstate
+                p1, st["p1"] = leaky(w[:, 0] * .0990460, .99765, st["p1"])
+                p2, st["p2"] = leaky(w[:, 0] * .2965164, .96300, st["p2"])
+                p3, st["p3"] = leaky(w[:, 0] * 1.0526913, .57000, st["p3"])
+                pink = (p1 + p2 + p3 + w[:, 0] * .1848) * .09
+                if S["noise"] == "Pink": nz = np.stack([pink, np.roll(pink, 97)], 1)
+                elif S["noise"] == "Brown":
+                    b, st["b"] = leaky(w[:, 0] * .02, .995, st["b"]); nz = np.stack([b, np.roll(b, 131)], 1) * 1.6
+                else:  # Green: pink through a gentle mid band
+                    g, st["r"] = leaky(pink, .90, st["r"]); nz = np.stack([g, np.roll(g, 61)], 1) * 1.4
+            out += (nz * S["nlvl"]).astype(np.float32)
+
+        # weather / places
+        for name in S["nature"]:
+            w = self.rng.standard_normal(n)
+            if name == "Rain":
+                hp, _ = leaky(w, .85, 0.0); r = w - hp * .85
+                flutter = 1 + .25 * np.sin(2 * np.pi * .3 * (t0 + np.arange(n)) / SR)
+                lay = r * flutter * .06
+            elif name == "Wind":
+                st = self.nstate
+                b, st["wmod"] = leaky(w * .012, .997, st["wmod"])
+                gust = .6 + .4 * np.sin(2 * np.pi * .07 * (t0 + np.arange(n)) / SR) ** 2
+                lay = b * gust * 1.1
+            elif name == "Surf":
+                swell = (.5 + .5 * np.sin(2 * np.pi * (t0 + np.arange(n)) / SR / 9.0)) ** 2
+                p, _ = leaky(w * .05, .985, 0.0); lay = p * swell * 1.2
+            elif name == "Fire":
+                b, _ = leaky(w * .03, .99, 0.0)
+                crack = (self.rng.random(n) < .0008) * self.rng.standard_normal(n) * .6
+                lay = b * .9 + crack * .5
+            elif name == "Crickets":
+                ch = (np.sin(2 * np.pi * 4300 * t) * (np.sin(2 * np.pi * 19 * (t0 + np.arange(n)) / SR) > .3))
+                gate = (np.sin(2 * np.pi * .9 * (t0 + np.arange(n)) / SR) > -.2)
+                lay = ch * gate * .05
+            else: continue
+            out[:, 0] += lay; out[:, 1] += lay * .92
+
+        # master gain with smooth fade (timer and start/stop) + volume
+        g = self.master + (target - self.master) * (1 - np.exp(-np.arange(1, n + 1) / (SR * .08)))
+        self.master = float(g[-1])
+        out *= (g * S["vol"] * 2.0)[:, None]
+        out = np.tanh(out * 1.15) * .95      # soft limiter
+        self.t0 += n
+        return out.astype(np.float32)
+
+# ------------------------------------------------------------------ IO
+def player_cmd():
+    env = os.environ.get("GC_PLAYER")
+    if env: return env.split()
+    return ["pw-cat", "--playback", "--raw", "--rate=%d" % SR, "--channels=2", "--format=f32", "-"]
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out"); ap.add_argument("--seconds", type=float, default=6)
+    ap.add_argument("--scene"); ap.add_argument("--set")
+    a = ap.parse_args()
+    eng = Engine()
+    if a.scene: eng.scene(a.scene)
+    if a.set: eng.apply(json.loads(a.set))
+
+    if a.out:  # offline render for tests
+        eng.play()
+        frames = []
+        cpu0 = time.process_time()
+        for _ in range(int(a.seconds * SR / BLOCK)): frames.append(eng.block())
+        cpu = time.process_time() - cpu0
+        pcm = np.concatenate(frames)
+        with wave.open(a.out, "wb") as w:
+            w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+            w.writeframes((pcm * 32767).astype("<i2").tobytes())
+        print(json.dumps({"ok": True, "seconds": a.seconds, "cpu_seconds": round(cpu, 3),
+                          "rms_L": float(np.sqrt((pcm[:, 0] ** 2).mean())), "rms_R": float(np.sqrt((pcm[:, 1] ** 2).mean())),
+                          "peak": float(np.abs(pcm).max()), "nan": bool(np.isnan(pcm).any())}))
+        return
+
+    # live: read commands on a thread, stream audio to the player while on
+    def reader():
+        for line in sys.stdin:
+            line = line.strip()
+            if not line: continue
+            try: d = json.loads(line)
+            except Exception: emit({"error": "bad json"}); continue
+            c = d.get("cmd")
+            if c == "play": eng.play()
+            elif c == "stop": eng.stop()
+            elif c == "toggle": (eng.stop() if eng.on else eng.play())
+            elif c == "set": eng.apply(d)
+            elif c == "scene": eng.scene(d.get("name", ""))
+            elif c == "quit": os._exit(0)
+            emit(eng.status())
+        os._exit(0)
+    def emit(o):
+        sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
+    threading.Thread(target=reader, daemon=True).start()
+    emit({"ready": True, **eng.status()})
+    proc = None; last = 0
+    while True:
+        if eng.on or eng.master > 1e-4:
+            if proc is None or proc.poll() is not None:
+                try: proc = subprocess.Popen(player_cmd(), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+                except FileNotFoundError: emit({"error": "player not found: " + " ".join(player_cmd())}); eng.stop(); time.sleep(1); continue
+            try: proc.stdin.write(eng.block().tobytes())
+            except BrokenPipeError: proc = None
+        else:
+            if proc is not None:
+                try: proc.stdin.close()
+                except Exception: pass
+                proc.wait(); proc = None
+            time.sleep(.05)
+        if time.time() - last >= 1.0:
+            last = time.time(); emit(eng.status())
+
+if __name__ == "__main__":
+    main()

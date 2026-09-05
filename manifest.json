@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "bharat.undertone",
+  "name": "Undertone",
+  "version": "0.2.0",
+  "author": "Bharat / sworn.legal",
+  "license": "MIT",
+  "description": "Native binaural-beat instrument: hard-L/R beat, tanpura drone, Hindustani taals, noise colours, weather layers, breath pacer, sleep timer. No browser, no network. Audio via PipeWire.",
+  "kinds": ["service", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Undertone",
+    "description": "Play state + sleep-timer countdown. Click: show/hide panel. Middle-click: play/pause. Right-click: stop.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": { "showLabel": true },
+    "schema": [
+      { "key": "showLabel", "type": "boolean", "label": "Show beat / timer label", "defaultValue": true }
+    ]
+  }
+}

@@ -1,0 +1,912 @@
+{
+ "bands": [
+  {
+   "name": "Delta",
+   "beat": 2,
+   "desc": "Deep sleep. 0.5–4 Hz."
+  },
+  {
+   "name": "Theta",
+   "beat": 6,
+   "desc": "Deep meditation, the edge of dreaming. 4–8 Hz."
+  },
+  {
+   "name": "Schumann",
+   "beat": 7.83,
+   "desc": "The Earth–ionosphere cavity's fundamental."
+  },
+  {
+   "name": "Alpha",
+   "beat": 10,
+   "desc": "Relaxed and awake, eyes closed. 8–12 Hz."
+  },
+  {
+   "name": "Mu",
+   "beat": 11,
+   "desc": "Physical stillness; the motor cortex at rest."
+  },
+  {
+   "name": "Beta",
+   "beat": 20,
+   "desc": "Concentration, moderate alertness. 12–30 Hz."
+  },
+  {
+   "name": "Gamma",
+   "beat": 40,
+   "desc": "Alert, high-resolution perception. 30–50 Hz."
+  },
+  {
+   "name": "47 Hz",
+   "beat": 47,
+   "desc": "The signal. Chosen for the series, not for sleep."
+  }
+ ],
+ "scenes": [
+  {
+   "name": "Rest",
+   "set": {
+    "vis": 1,
+    "beat": 2,
+    "base": 110,
+    "drone": 0.4,
+    "rhythm": "Silent",
+    "breath": "4-7-8",
+    "noise": "Pink",
+    "nlvl": 0.35,
+    "nature": [],
+    "timer": 45,
+    "pal": "Station"
+   },
+   "who": "human",
+   "evidence": "measured",
+   "desc": "Delta beat on a low A under pink noise, 45-minute fade. Pink noise has small trials behind it for deeper slow-wave sleep; the binaural part is ritual."
+  },
+  {
+   "name": "Nap",
+   "set": {
+    "beat": 3,
+    "base": 110,
+    "drone": 0.3,
+    "rhythm": "Silent",
+    "breath": "No pacer",
+    "noise": "Brown",
+    "nlvl": 0.4,
+    "nature": [],
+    "timer": 20,
+    "pal": "Station"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "Twenty minutes and out. Brown noise, no drone to speak of, fade at the end so it doesn't wake you."
+  },
+  {
+   "name": "Sit",
+   "set": {
+    "beat": 7.83,
+    "base": 136,
+    "drone": 0.5,
+    "rhythm": "Silent",
+    "breath": "Nadi Shodhana",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Ocean"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "Schumann beat on 136 Hz — the tone Indian tradition calls Om. The 7.83 Hz is a measured atmospheric resonance; the pairing is belief."
+  },
+  {
+   "name": "Focus",
+   "set": {
+    "beat": 14,
+    "base": 220,
+    "drone": 0.2,
+    "rhythm": "Keherwa",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Golden"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "Low beta over a light Keherwa. Some studies find modest attention gains at 14–16 Hz; others find nothing. Cheap to try."
+  },
+  {
+   "name": "Heart",
+   "set": {
+    "beat": 6,
+    "base": 196,
+    "drone": 0.35,
+    "rhythm": "Heartbeat",
+    "breath": "Coherent",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Ember"
+   },
+   "who": "human",
+   "evidence": "measured",
+   "desc": "Resting pulse under six-breaths-a-minute pacing. Slow breathing at that rate raising heart-rate variability is well replicated. The theta beat is decoration."
+  },
+  {
+   "name": "Flow",
+   "set": {
+    "beat": 10,
+    "base": 220,
+    "drone": 0.6,
+    "rhythm": "Keherwa",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Tiranga"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "Yoga class. Tanpura up, Keherwa underneath, alpha beat. This is what most studio playlists are made of, minus the flute."
+  },
+  {
+   "name": "Savasana",
+   "set": {
+    "beat": 4,
+    "base": 136,
+    "drone": 0.55,
+    "rhythm": "Silent",
+    "breath": "Coherent",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 15,
+    "pal": "Rose"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "End of practice. Drone, slow breath ring, fifteen minutes then silence."
+  },
+  {
+   "name": "Tent in rain",
+   "set": {
+    "vis": 2,
+    "beat": 4,
+    "base": 110,
+    "drone": 0.15,
+    "rhythm": "Silent",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0.6,
+    "nature": [
+     "Rain",
+     "Wind"
+    ],
+    "timer": 60,
+    "pal": "Canvas"
+   },
+   "who": "human",
+   "evidence": "measured",
+   "desc": "Camping. Rain on canvas with a little wind; also the best snore mask there is. Steady broadband sound masks sudden noises — that part is just physics."
+  },
+  {
+   "name": "Campfire",
+   "set": {
+    "vis": 1,
+    "beat": 6,
+    "base": 82,
+    "drone": 0.25,
+    "rhythm": "Silent",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0.55,
+    "nature": [
+     "Fire",
+     "Crickets"
+    ],
+    "timer": 0,
+    "pal": "Firelight"
+   },
+   "who": "human",
+   "evidence": "tradition",
+   "desc": "Crackle, low rumble, crickets. Base tone is a low E. Nobody has studied campfires; everybody knows."
+  },
+  {
+   "name": "Savanna night",
+   "set": {
+    "vis": 2,
+    "beat": 5,
+    "base": 65,
+    "drone": 0.3,
+    "rhythm": "Silent",
+    "breath": "No pacer",
+    "noise": "Brown",
+    "nlvl": 0.2,
+    "nature": [
+     "Crickets",
+     "Wind"
+    ],
+    "timer": 0,
+    "pal": "Savanna"
+   },
+   "who": "human",
+   "evidence": "series",
+   "desc": "Safari camp after the generator goes off. Crickets, dry wind, a low drone you feel in the cot. The animals are implied."
+  },
+  {
+   "name": "Kennel calm",
+   "set": {
+    "beat": 6,
+    "base": 110,
+    "drone": 0.3,
+    "rhythm": "Reggae one-drop",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Kennel",
+    "species": "Dog",
+    "drift": true
+   },
+   "who": "animal",
+   "evidence": "measured",
+   "desc": "Reggae under the dog filter, with drift on. Shelter dogs relaxed most to reggae and soft rock (Bowman 2017) and stopped responding to any one track within days — so this one slowly changes. Speaker, low."
+  },
+  {
+   "name": "Cat",
+   "set": {
+    "beat": 25,
+    "base": 220,
+    "drone": 0.2,
+    "rhythm": "Dadra",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Rose",
+    "species": "Cat"
+   },
+   "who": "animal",
+   "evidence": "measured",
+   "desc": "Cats ignore human music but respond to pieces built on purr and suckling tempos (Snowdon & Teie 2015). Purr-rate beat, Dadra lilt, cat filter. Speaker, low."
+  },
+  {
+   "name": "Greenhouse",
+   "set": {
+    "beat": 8,
+    "base": 250,
+    "drone": 0.45,
+    "rhythm": "Fibonacci",
+    "breath": "No pacer",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [
+     "Rain"
+    ],
+    "timer": 0,
+    "pal": "Golden"
+   },
+   "who": "plant",
+   "evidence": "measured",
+   "desc": "Plants sense airborne vibration in the low hundreds of Hz (Appel & Cocroft 2014). Nobody has shown they enjoy anything. Fibonacci accents for phyllotaxis, which is real."
+  },
+  {
+   "name": "Mycelium",
+   "set": {
+    "vis": 2,
+    "beat": 4,
+    "base": 55,
+    "drone": 0.6,
+    "rhythm": "Deepchandi",
+    "breath": "Nadi Shodhana",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "pal": "Mycelium"
+   },
+   "who": "fungus",
+   "evidence": "series",
+   "desc": "Mycelium carries electrical spike trains minutes long (Adamatzky 2022). None of it is in the audio band. This is the scene the novels are built on. Base is A1 — felt more than heard."
+  }
+ ],
+ "rhythms": [
+  {
+   "name": "Silent",
+   "pat": null,
+   "desc": "Drone only. Nothing struck."
+  },
+  {
+   "name": "Heartbeat",
+   "pat": {
+    "bpm": 58,
+    "steps": 8,
+    "hits": [
+     [
+      0,
+      "thump",
+      1
+     ],
+     [
+      1,
+      "thump",
+      0.55
+     ]
+    ]
+   },
+   "desc": "Lub–dub at a resting pulse, 58 per minute."
+  },
+  {
+   "name": "Reggae one-drop",
+   "pat": {
+    "bpm": 74,
+    "steps": 16,
+    "hits": [
+     [
+      8,
+      "dha",
+      1
+     ],
+     [
+      8,
+      "na",
+      0.8
+     ],
+     [
+      2,
+      "na",
+      0.45
+     ],
+     [
+      6,
+      "na",
+      0.45
+     ],
+     [
+      10,
+      "na",
+      0.45
+     ],
+     [
+      14,
+      "na",
+      0.45
+     ]
+    ]
+   },
+   "desc": "Kick and snare land together on the three; the skank sits on the offbeats. The best-evidenced calming rhythm for dogs."
+  },
+  {
+   "name": "Fibonacci",
+   "pat": {
+    "bpm": 96,
+    "steps": 21,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "na",
+      0.6
+     ],
+     [
+      2,
+      "na",
+      0.6
+     ],
+     [
+      4,
+      "na",
+      0.7
+     ],
+     [
+      7,
+      "dha",
+      0.8
+     ],
+     [
+      12,
+      "na",
+      0.7
+     ],
+     [
+      20,
+      "na",
+      0.5
+     ]
+    ]
+   },
+   "desc": "Accents at 1, 2, 3, 5, 8, 13 across a 21-step cycle."
+  },
+  {
+   "name": "Teentaal",
+   "pat": {
+    "bpm": 120,
+    "matra": 1,
+    "steps": 16,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "dha",
+      0.5
+     ],
+     [
+      2,
+      "dha",
+      0.5
+     ],
+     [
+      3,
+      "na",
+      0.4
+     ],
+     [
+      4,
+      "dha",
+      0.8
+     ],
+     [
+      5,
+      "dha",
+      0.5
+     ],
+     [
+      6,
+      "dha",
+      0.5
+     ],
+     [
+      7,
+      "na",
+      0.4
+     ],
+     [
+      8,
+      "tin",
+      0.7
+     ],
+     [
+      9,
+      "tin",
+      0.5
+     ],
+     [
+      10,
+      "tin",
+      0.5
+     ],
+     [
+      11,
+      "na",
+      0.4
+     ],
+     [
+      12,
+      "dha",
+      0.8
+     ],
+     [
+      13,
+      "dha",
+      0.5
+     ],
+     [
+      14,
+      "dha",
+      0.5
+     ],
+     [
+      15,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Sixteen matras, 4+4+4+4. Sam on one, khali on nine, tali on five and thirteen."
+  },
+  {
+   "name": "Keherwa",
+   "pat": {
+    "bpm": 132,
+    "matra": 1,
+    "steps": 8,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "na",
+      0.4
+     ],
+     [
+      2,
+      "na",
+      0.5
+     ],
+     [
+      3,
+      "na",
+      0.4
+     ],
+     [
+      4,
+      "tin",
+      0.7
+     ],
+     [
+      5,
+      "na",
+      0.4
+     ],
+     [
+      6,
+      "dha",
+      0.7
+     ],
+     [
+      7,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Eight matras, 4+4. The folk and film taal; khali on five."
+  },
+  {
+   "name": "Dadra",
+   "pat": {
+    "bpm": 126,
+    "matra": 1,
+    "steps": 6,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "dha",
+      0.5
+     ],
+     [
+      2,
+      "na",
+      0.4
+     ],
+     [
+      3,
+      "tin",
+      0.7
+     ],
+     [
+      4,
+      "na",
+      0.5
+     ],
+     [
+      5,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Six matras, 3+3. Lilting; khali on four."
+  },
+  {
+   "name": "Rupak",
+   "pat": {
+    "bpm": 120,
+    "matra": 1,
+    "steps": 7,
+    "hits": [
+     [
+      0,
+      "tin",
+      0.9
+     ],
+     [
+      1,
+      "tin",
+      0.6
+     ],
+     [
+      2,
+      "na",
+      0.4
+     ],
+     [
+      3,
+      "dha",
+      0.8
+     ],
+     [
+      4,
+      "na",
+      0.4
+     ],
+     [
+      5,
+      "dha",
+      0.8
+     ],
+     [
+      6,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Seven matras, 3+2+2. The only taal whose sam is khali — it begins empty."
+  },
+  {
+   "name": "Jhaptaal",
+   "pat": {
+    "bpm": 116,
+    "matra": 1,
+    "steps": 10,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "na",
+      0.4
+     ],
+     [
+      2,
+      "dha",
+      0.7
+     ],
+     [
+      3,
+      "dha",
+      0.6
+     ],
+     [
+      4,
+      "na",
+      0.4
+     ],
+     [
+      5,
+      "tin",
+      0.7
+     ],
+     [
+      6,
+      "na",
+      0.4
+     ],
+     [
+      7,
+      "dha",
+      0.7
+     ],
+     [
+      8,
+      "dha",
+      0.6
+     ],
+     [
+      9,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Ten matras, 2+3+2+3. Khali on six."
+  },
+  {
+   "name": "Ektaal",
+   "pat": {
+    "bpm": 112,
+    "matra": 1,
+    "steps": 12,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "dha",
+      0.6
+     ],
+     [
+      2,
+      "dha",
+      0.6
+     ],
+     [
+      3,
+      "na",
+      0.4
+     ],
+     [
+      4,
+      "tin",
+      0.7
+     ],
+     [
+      5,
+      "na",
+      0.4
+     ],
+     [
+      6,
+      "na",
+      0.5
+     ],
+     [
+      7,
+      "na",
+      0.4
+     ],
+     [
+      8,
+      "dha",
+      0.6
+     ],
+     [
+      9,
+      "na",
+      0.4
+     ],
+     [
+      10,
+      "dha",
+      0.7
+     ],
+     [
+      11,
+      "na",
+      0.4
+     ]
+    ]
+   },
+   "desc": "Twelve matras, 2+2+2+2+2+2. Khali on three and seven; the taal of vilambit khayal."
+  },
+  {
+   "name": "Deepchandi",
+   "pat": {
+    "bpm": 100,
+    "matra": 1,
+    "steps": 14,
+    "hits": [
+     [
+      0,
+      "dha",
+      1
+     ],
+     [
+      1,
+      "dha",
+      0.6
+     ],
+     [
+      3,
+      "dha",
+      0.7
+     ],
+     [
+      4,
+      "dha",
+      0.6
+     ],
+     [
+      5,
+      "tin",
+      0.6
+     ],
+     [
+      7,
+      "tin",
+      0.7
+     ],
+     [
+      8,
+      "tin",
+      0.5
+     ],
+     [
+      10,
+      "dha",
+      0.7
+     ],
+     [
+      11,
+      "dha",
+      0.6
+     ],
+     [
+      12,
+      "dha",
+      0.6
+     ]
+    ]
+   },
+   "desc": "Fourteen matras, 3+4+3+4, with rests. Thumri's taal; khali on eight."
+  }
+ ],
+ "breaths": [
+  {
+   "name": "No pacer",
+   "phases": null,
+   "desc": ""
+  },
+  {
+   "name": "4-7-8",
+   "phases": [
+    4,
+    7,
+    8,
+    0
+   ],
+   "desc": "Inhale four, hold seven, exhale eight."
+  },
+  {
+   "name": "Box",
+   "phases": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "desc": "Equal sides. Steadying."
+  },
+  {
+   "name": "Nadi Shodhana",
+   "phases": [
+    4,
+    16,
+    8,
+    0
+   ],
+   "desc": "The 1:4:2 ratio. Alternate nostrils by hand; the ring keeps time."
+  },
+  {
+   "name": "Coherent",
+   "phases": [
+    5,
+    0,
+    5,
+    0
+   ],
+   "desc": "Six breaths a minute. The rate that reliably raises heart-rate variability."
+  }
+ ],
+ "noises": [
+  "Off",
+  "White",
+  "Pink",
+  "Brown",
+  "Green"
+ ],
+ "nature": [
+  "Rain",
+  "Wind",
+  "Fire",
+  "Surf",
+  "Crickets"
+ ]
+}
