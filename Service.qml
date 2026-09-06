@@ -119,7 +119,7 @@ Item {
   function retrySetup() { root.setupNeeded = false; root.setupMessage = ""; engine.running = true }
 
   function toggleWindow() { if (win.visible) hideWindow(); else showWindow() }
-  function showWindow() { win.visible = true; win.requestActivate() }
+  function showWindow() { win.visible = true }
   function hideWindow() { win.visible = false }
 
   // CLI / hotkey:  omarchy-shell undertone toggle
@@ -134,7 +134,7 @@ Item {
     function scene(name: string): void { root.setScene(name) }
     function screensaver(): void { root.openSaver() }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
-    function visual(model: string): void { var m = { field: 0, lava: 1, flow: 2 }[String(model).toLowerCase()]; if (m !== undefined) root.visModel = m }
+    function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2 }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
