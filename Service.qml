@@ -53,7 +53,8 @@ Item {
   function omLabel(k) { var t = String(k).replace(/^om[_-]?/i, "").replace(/[_-]+/g, " ").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : String(k) }
   property string omDir: ""
   property real omlvl: 0.5
-  readonly property bool windowOpen: win.visible
+  readonly property bool windowOpen: win ? win.visible : false
+  readonly property var win: winLoader.item
   property int visModel: 4               // 0 field · 1 lava · 2 flow · 3 spectrum · 4 cymatics
   property var saverDiag: null
   property string painter: "bmp"
@@ -168,9 +169,23 @@ Item {
   function addClip(path) { send({ cmd: "clip", add: String(path) }) }
   function retrySetup() { root.setupNeeded = false; root.setupMessage = ""; engine.running = true }
 
-  function toggleWindow() { if (win.visible) hideWindow(); else showWindow() }
-  function showWindow() { if (win.visible) win.visible = false; win.visible = true; win.requestActivate ? 0 : 0 }
-  function hideWindow() { win.visible = false }
+  function toggleWindow() { if (win && win.visible) hideWindow(); else showWindow() }
+  function hideWindow() { if (win) win.visible = false }
+  // A floating window that was closed by the window manager (Super+W) will not map again on
+  // visible = true. If a show does not take, recreate the window and show the new one.
+  property int showTries: 0
+  function showWindow() {
+    if (!winLoader.item) winLoader.active = true
+    winLoader.item.visible = true
+    showTries = 0; showCheck.restart()
+  }
+  Timer {
+    id: showCheck; interval: 150
+    onTriggered: {
+      if (winLoader.item && winLoader.item.visible) { root.showTries = 0; return }
+      if (root.showTries++ < 2) { winLoader.active = false; winLoader.active = true; winLoader.item.visible = true; showCheck.restart() }
+    }
+  }
 
   // CLI / hotkey:  omarchy-shell undertone toggle
   IpcHandler {
@@ -187,7 +202,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.7.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.7.2", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -200,7 +215,7 @@ Item {
     }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3; else if (k === "cymatics") root.visModel = 4; else if (k === "mandala") root.visModel = 5; else if (k === "lissajous") root.visModel = 6; else if (k === "scope") root.visModel = 7; else if (k === "tunnel") root.visModel = 8 }
-    function winfo(): string { return JSON.stringify({ visible: win.visible, width: win.width, height: win.height, x: win.x, y: win.y, screen: win.screen ? String(win.screen.name) : null, colH: Math.round(col.implicitHeight), flowerOk: true }) }
+    function winfo(): string { var w = root.win; return JSON.stringify({ loaded: !!w, visible: w ? w.visible : null, width: w ? w.width : null, height: w ? w.height : null, screen: w && w.screen ? String(w.screen.name) : null, showTries: root.showTries }) }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
@@ -213,7 +228,7 @@ Item {
     return null
   }
   property real breathT: 0
-  Timer { interval: 50; repeat: true; running: (win.visible || root.saverOpen) && root.playing && root.breathPhases !== null; onTriggered: root.breathT += 0.05 }
+  Timer { interval: 50; repeat: true; running: (root.windowOpen || root.saverOpen) && root.playing && root.breathPhases !== null; onTriggered: root.breathT += 0.05 }
   // 0..1 ring size: rises on inhale, holds, falls on exhale, holds
   readonly property real breathLevel: {
     var p = breathPhases; if (!p) return 0.5
@@ -326,9 +341,11 @@ Item {
   }
 
   // ---- control panel
-  FloatingWindow {
-    // (scrollbar is declared after the Flickable below)
-    id: win
+  Loader {
+    id: winLoader
+    active: true
+    sourceComponent: FloatingWindow {
+    id: winItem
     title: "Undertone"
     visible: false
     color: Color.background
@@ -400,7 +417,7 @@ Item {
             breathLevel: root.breathPhases ? root.breathLevel : null
             Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps); panelVisual.setWave(root.wave[0], root.wave[1], root.wave[2]) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
           Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
-            running: win.visible && !root.saverOpen
+            running: winItem.visible && !root.saverOpen
           }
           Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }
           BreathFlower { visible: root.breathPhases !== null; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: Style.space(8); width: parent.height * 0.5; height: width; compact: true
@@ -713,5 +730,6 @@ Item {
         onPositionChanged: function(m) { if (!pressed) return; var frac = Math.max(0, Math.min(1, (m.y - grabOffset) / Math.max(1, sbTrack.height - sbThumb.height))); flick.contentY = frac * (flick.contentHeight - flick.height) }
       }
     }
+  }
   }
 }

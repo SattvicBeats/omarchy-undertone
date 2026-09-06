@@ -19,6 +19,7 @@ Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visibl
 | 0.6.9 | v0.6.9 | (see bundle) | Om = any files in the om folder, one button each (male/female keys kept) | service ✓ · continuity ✓ · options test ✓ |
 | 0.7.0 | v0.7.0 | (see bundle) | publish candidate: LICENSE (MIT), README for the marketplace, manifest metadata, .gitignore, qmllint in the gate | service ✓ · continuity ✓ · qmllint (see note) |
 | 0.7.1 | v0.7.1 | (see bundle) | FIX: visual model state per instance (shared library state double-stepped Lava with two visuals — panel + saver, or two monitors); screensaver uses the preview's buffer/fps | service ✓ · continuity ✓ · two-visual independence ✓ |
+| 0.7.2 | v0.7.2 | (see bundle) | FIX: panel window recreated if a show does not map (window closed by the WM would never re-open — the 0.6.2 "cannot open" report) | service ✓ (open/hide/re-open) · continuity ✓ |
 
 ## Rollback
     undertone-release list
