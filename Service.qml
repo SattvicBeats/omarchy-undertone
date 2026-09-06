@@ -147,6 +147,8 @@ Item {
   function posToHz(p) { return baseLo * Math.pow(baseHi / baseLo, Math.max(0, Math.min(1, p))) }
   function hzToPos(f) { return Math.log(Math.max(baseLo, Math.min(baseHi, f)) / baseLo) / Math.log(baseHi / baseLo) }
   function setScene(name) { send({ cmd: "scene", name: String(name) }) }
+  // Black Dawn mode: just the two ear tones — the beat is the whole sound
+  function purePair() { root.set({ drone: 0, noise: "Off", nlvl: 0, nature: [], rhythm: "Silent" }) }
   function rescanClips() { send({ cmd: "clips" }) }
   function setClip(name, o) { o.cmd = "clip"; o.name = name; send(o) }
   function addClip(path) { send({ cmd: "clip", add: String(path) }) }
@@ -166,10 +168,12 @@ Item {
     function stop(): void { root.stop() }
     function playpause(): void { root.togglePlay() }
     function scene(name: string): void { root.setScene(name) }
+    function set(param: string, value: string): void { var o = {}; var k = String(param); var v = Number(value); o[k] = (k === "rhythm" || k === "noise" || k === "breath") ? String(value) : (isFinite(v) ? v : value); root.set(o) }
+    function pure(): void { root.purePair() }
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.5.4", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.5.5", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -439,7 +443,26 @@ Item {
         }
 
         // tones
-        PanelSectionHeader { text: "Beat  " + root.beat.toFixed(2) + " Hz     Base  " + root.base.toFixed(1) + " Hz     L " + root.base.toFixed(2) + " · R " + (root.base + root.beat).toFixed(2) }
+        PanelSectionHeader { text: "Tones" }
+        RowLayout {
+          Layout.fillWidth: true; spacing: Style.space(8)
+          Repeater {
+            model: [ { l: "Left ear", v: root.base.toFixed(2), hi: false }, { l: "Right ear", v: (root.base + root.beat).toFixed(2), hi: false }, { l: "The beat", v: root.beat.toFixed(2), hi: true } ]
+            delegate: Rectangle {
+              required property var modelData
+              Layout.fillWidth: true; implicitHeight: Style.space(58); radius: Style.cornerRadius
+              color: Qt.darker(Color.background, 0.9); border.width: 1; border.color: modelData.hi ? Color.accent : Qt.rgba(1, 1, 1, 0.1)
+              Column {
+                anchors.centerIn: parent; spacing: 2
+                Text { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.l.toUpperCase(); color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.letterSpacing: 1.5 }
+                Row { anchors.horizontalCenter: parent.horizontalCenter; spacing: 4
+                  Text { text: modelData.v; color: modelData.hi ? Color.accent : Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body * 1.6 }
+                  Text { text: "Hz"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; anchors.baseline: parent.children[0].baseline } }
+              }
+            }
+          }
+          Button { text: "Pure pair"; tooltipText: "Only the two ear tones (drone, noise, places, pattern off) — the beat becomes the whole sound, like Black Dawn"; selected: root.drone === 0 && root.noise === "Off" && root.nature.length === 0 && root.rhythm === "Silent"; onClicked: root.purePair() }
+        }
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {

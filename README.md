@@ -24,7 +24,7 @@ card with that command if it's missing. `pw-cat` ships with PipeWire.
 
       bindd = SUPER ALT, U, Undertone, exec, omarchy-shell undertone toggle
 
-- CLI: `omarchy-shell undertone playpause|play|stop|show|hide|status`,
+- CLI: `omarchy-shell undertone playpause|play|stop|show|hide|status`, `omarchy-shell undertone set beat 47`, `omarchy-shell undertone pure` (two ear tones only),
   `omarchy-shell undertone scene Rest`
 
 ## Visuals listen to the sound
