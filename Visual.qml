@@ -54,7 +54,8 @@ Item {
   property var probe: null
   property var readback: null
 
-  readonly property int bw: useGpu ? 160 : (painter === "rects" ? Math.min(bufferWidth, 160) : bufferWidth)
+  readonly property int bw: useGpu ? 160 : Math.min(bufferWidth, 160)     // JS painters never above 160: they run on the shell thread
+  readonly property int effFps: useGpu || model === 3 ? fps : Math.min(fps, 15)
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
   function pulse(a) { V.hit(a); hitLevel = Math.max(hitLevel, a) }
@@ -268,7 +269,7 @@ Item {
   }
 
   Timer {
-    interval: Math.round(1000 / host.fps)
+    interval: Math.round(1000 / host.effFps)
     repeat: true
     running: host.running && host.visible && host.width > 0
     onTriggered: {

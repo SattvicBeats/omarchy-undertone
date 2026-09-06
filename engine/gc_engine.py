@@ -9,7 +9,7 @@ Control: JSON lines on stdin.   Status: JSON lines on stdout (1 Hz + after every
                "noise":"Pink","nlvl":.35,"nature":["Rain","Wind"],"timer":45,"breath":"Coherent"}
 Test:  gc_engine.py --out mix.wav --seconds 6 --scene Flow
 """
-import sys, os, json, time, math, threading, subprocess, argparse, wave, struct
+import sys, os, json, time, math, threading, subprocess, argparse, wave, struct, queue
 import numpy as np
 import base64
 import plate as PLATE
@@ -222,11 +222,15 @@ class Engine:
             with open(cache) as fh: modes = json.load(fh)
         except Exception: pass
         if not modes:
-            modes = PLATE.plate_table()
+            # solve in a separate process so the 6 s of numpy work cannot stall the audio thread (GIL)
             try:
                 os.makedirs(os.path.dirname(cache), exist_ok=True)
-                with open(cache, "w") as fh: json.dump(modes, fh)
-            except Exception: pass
+                code = "import json,sys,plate; json.dump(plate.plate_table(), open(sys.argv[1], 'w'))"
+                subprocess.run([sys.executable, "-c", code, cache], cwd=HERE, check=True, timeout=300,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                with open(cache) as fh: modes = json.load(fh)
+            except Exception:
+                modes = PLATE.plate_table()
         lut = PLATE.radial_lut(modes, 256)                             # (M, 256) in [-1, 1]
         # pack the LUT as an 8-bit BMP (rows = modes, x = radius) for the shader to sample
         M, N = lut.shape
@@ -466,9 +470,24 @@ def main():
             elif c == "quit": os._exit(0)
             emit(eng.status())
         os._exit(0)
-    elock = threading.Lock()
-    def emit(o):
-        with elock: sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
+    # stdout goes through a writer thread: if the shell is slow to read, audio keeps going and
+    # stale analysis frames are dropped instead of blocking block() on a full pipe
+    outq = queue.Queue(maxsize=32)
+    wlock = threading.Lock()
+    def _write(line):
+        with wlock:
+            try: sys.stdout.write(line); sys.stdout.flush()
+            except Exception: os._exit(0)
+    def writer():
+        while True: _write(outq.get())
+    threading.Thread(target=writer, daemon=True).start()
+    def emit(o, droppable=False):
+        line = json.dumps(o) + "\n"
+        if droppable:                        # analysis frames from the audio thread: never block, drop if behind
+            try: outq.put_nowait(line)
+            except queue.Full: pass
+        else:                                # command replies / plate: written by the caller's own thread
+            _write(line)
     threading.Thread(target=reader, daemon=True).start()
     eng.scan_clips()
     emit({"ready": True, "clipDir": CLIP_DIR, **eng.status()})
@@ -481,20 +500,20 @@ def main():
             try: proc.stdin.write(eng.block().tobytes())
             except BrokenPipeError: proc = None
             if eng.hits:
-                a = max(eng.hits); eng.hits = []; emit({"hit": round(a, 2)})
+                a = max(eng.hits); eng.hits = []; emit({"hit": round(a, 2)}, droppable=True)
             blk += 1
             if blk % 2 == 0:
-                eng.spectrum(); emit(eng.analysis())          # ~23 Hz
-        with eng.lock: pm = eng.plate_msg
-        if pm is not None:
-            with eng.lock: eng.plate_msg = None
-            emit(pm)
+                eng.spectrum(); emit(eng.analysis(), droppable=True)          # ~23 Hz
         else:
-            if proc is not None:
+            if proc is not None:                       # audio off: release the PipeWire stream
                 try: proc.stdin.close()
                 except Exception: pass
                 proc.wait(); proc = None
             time.sleep(.05)
+        with eng.lock: pm = eng.plate_msg               # the solved plate, sent once, whenever it is ready
+        if pm is not None:
+            with eng.lock: eng.plate_msg = None
+            emit(pm)
         if time.time() - last >= 1.0:
             last = time.time(); emit(eng.status())
 
