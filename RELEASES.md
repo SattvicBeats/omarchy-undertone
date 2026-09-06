@@ -21,6 +21,7 @@ Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visibl
 | 0.7.1 | v0.7.1 | (see bundle) | FIX: visual model state per instance (shared library state double-stepped Lava with two visuals — panel + saver, or two monitors); screensaver uses the preview's buffer/fps | service ✓ · continuity ✓ · two-visual independence ✓ |
 | 0.7.2 | v0.7.2 | (see bundle) | FIX: panel window recreated if a show does not map (window closed by the WM would never re-open — the 0.6.2 "cannot open" report) | service ✓ (open/hide/re-open) · continuity ✓ |
 | 0.7.3 | v0.7.3 | (see bundle) | bottom transport bar (Play/Pause, Stop, readout, Screensaver) outside the scroll area; header title elides; Space toggles play | service ✓ · continuity ✓ |
+| 0.7.4 | v0.7.4 | (see bundle) | Pure pair moved to the transport bar; readout cards shrink instead of clipping | service ✓ · continuity ✓ |
 
 ## Rollback
     undertone-release list

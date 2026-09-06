@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bharat.undertone",
   "name": "Undertone",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "author": "Bharat Sharma (SattvicBeats)",
   "license": "MIT",
   "description": "Binaural-beat instrument: tanpura drone, taals, noise colours, weather, Om, breath pacer, sleep timer; visuals measured from the output incl. a solved Chladni plate; fullscreen screensaver. numpy engine \u2192 PipeWire.",

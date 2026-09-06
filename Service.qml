@@ -202,7 +202,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.7.3", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.7.4", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -497,7 +497,7 @@ Item {
             model: [ { l: "Left ear", v: root.base.toFixed(2), hi: false }, { l: "Right ear", v: (root.base + root.beat).toFixed(2), hi: false }, { l: "The beat", v: root.beat.toFixed(2), hi: true } ]
             delegate: Rectangle {
               required property var modelData
-              Layout.fillWidth: true; implicitHeight: Style.space(58); radius: Style.cornerRadius
+              Layout.fillWidth: true; Layout.minimumWidth: Style.space(90); implicitHeight: Style.space(58); radius: Style.cornerRadius
               color: Qt.darker(Color.background, 0.9); border.width: 1; border.color: modelData.hi ? Color.accent : Qt.rgba(1, 1, 1, 0.1)
               Column {
                 anchors.centerIn: parent; spacing: 2
@@ -508,7 +508,6 @@ Item {
               }
             }
           }
-          Button { text: "Pure pair"; tooltipText: "Only the two ear tones (drone, noise, places, pattern off) — the beat becomes the whole sound, like Black Dawn"; selected: root.drone === 0 && root.noise === "Off" && root.nature.length === 0 && root.rhythm === "Silent"; onClicked: root.purePair() }
         }
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
@@ -723,6 +722,7 @@ Item {
           text: (root.scene ? root.scene + "  ·  " : "") + "L " + root.base.toFixed(1) + "  R " + (root.base + root.beat).toFixed(1) + "  beat " + root.beat.toFixed(2) + " Hz" + (root.playing && root.timerLeft > 0 ? "  ·  " + Math.floor(root.timerLeft / 60) + ":" + (root.timerLeft % 60 < 10 ? "0" : "") + (root.timerLeft % 60) : "")
           color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
         }
+        Button { text: "Pure pair"; tooltipText: "Only the two ear tones — drone, noise, places, pattern and Om off"; selected: root.drone === 0 && root.noise === "Off" && root.nature.length === 0 && root.rhythm === "Silent" && root.om === "off"; onClicked: root.purePair() }
         Button { text: "Screensaver"; onClicked: root.openSaver() }
       }
     }
