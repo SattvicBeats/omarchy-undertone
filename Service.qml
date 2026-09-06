@@ -23,10 +23,10 @@ Item {
   readonly property string webUrl: "https://groundcontrol.sworn.legal/"
 
   // ---- data tables shared with the engine (engine/data.json)
-  property var data: ({ scenes: [], rhythms: [], breaths: [], noises: [], nature: [], bands: [] })
+  property var tables: ({ scenes: [], rhythms: [], breaths: [], noises: [], nature: [], bands: [] })
   FileView {
     path: root.pluginDir + "engine/data.json"
-    onLoaded: { try { root.data = JSON.parse(text()) } catch (e) { console.warn("groundcontrol: data.json", e) } }
+    onLoaded: { try { root.tables = JSON.parse(text()) } catch (e) { console.warn("groundcontrol: data.json", e) } }
   }
 
   // ---- mirrored engine state
@@ -142,7 +142,8 @@ Item {
 
   // ---- breath pacer clock (visual only; audio is untouched by it)
   readonly property var breathPhases: {
-    for (var i = 0; i < data.breaths.length; i++) if (data.breaths[i].name === breath) return data.breaths[i].phases
+    var bl = tables && tables.breaths ? tables.breaths : []
+    for (var i = 0; i < bl.length; i++) if (bl[i].name === breath) return bl[i].phases
     return null
   }
   property real breathT: 0
@@ -350,7 +351,7 @@ Item {
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: root.data.scenes
+            model: root.tables.scenes
             delegate: Button {
               required property var modelData
               text: modelData.name + "  ·  " + modelData.evidence
@@ -366,7 +367,7 @@ Item {
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: root.data.bands
+            model: root.tables.bands
             delegate: Button {
               required property var modelData
               text: modelData.name + " " + modelData.beat
@@ -402,7 +403,7 @@ Item {
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: root.data.rhythms
+            model: root.tables.rhythms
             delegate: Button {
               required property var modelData
               text: modelData.name
@@ -430,7 +431,7 @@ Item {
           Flow {
             Layout.fillWidth: true; spacing: Style.space(6)
             Repeater {
-              model: root.data.breaths
+              model: root.tables.breaths
               delegate: Button {
                 required property var modelData
                 text: modelData.name
@@ -449,7 +450,7 @@ Item {
           Flow {
             Layout.fillWidth: true; spacing: Style.space(6)
             Repeater {
-              model: root.data.noises
+              model: root.tables.noises
               delegate: Button {
                 required property var modelData
                 text: modelData
@@ -464,7 +465,7 @@ Item {
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: root.data.nature
+            model: root.tables.nature
             delegate: Button {
               required property var modelData
               text: modelData
