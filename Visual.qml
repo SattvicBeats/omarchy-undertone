@@ -24,7 +24,7 @@ Item {
   property var probe: null
   property var readback: null
 
-  readonly property int bw: bufferWidth
+  readonly property int bw: painter === "rects" ? Math.min(bufferWidth, 128) : bufferWidth
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
   function pulse(a) { V.hit(a) }

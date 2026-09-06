@@ -100,7 +100,7 @@ function paintRects(ctx) {
   for (y = 0; y < FH; y++) {
     x0 = 0; last = -1;
     for (x = 0; x < FW; x++, p += 4) {
-      r = d[p] | 0; g = d[p + 1] | 0; b = d[p + 2] | 0; key = (r << 16) | (g << 8) | b;
+      r = (d[p] | 0) & 248; g = (d[p + 1] | 0) & 248; b = (d[p + 2] | 0) & 248; key = (r << 16) | (g << 8) | b;   // 5-bit quantise → longer runs
       if (key !== last) {
         if (last >= 0) { ctx.fillStyle = "#" + ("000000" + last.toString(16)).slice(-6); ctx.fillRect(x0, y, x - x0, 1); }
         last = key; x0 = x;
