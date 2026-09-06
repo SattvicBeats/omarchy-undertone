@@ -137,8 +137,8 @@ function bytesToB64(a) {
   if (!B64T) b64init();
   var out = new Array(Math.ceil(a.length / 3)), n = a.length - (a.length % 3), k = 0, i;
   for (i = 0; i < n; i += 3) { var v = (a[i] << 16) | (a[i + 1] << 8) | a[i + 2]; out[k++] = B64T[v >> 12] + B64T[v & 4095]; }
-  if (a.length - n === 1) { var v1 = a[i] << 16; out[k++] = B64T[v1 >> 12] + B64[(v1 >> 6) & 63] + "="; }
-  else if (a.length - n === 2) { var v2 = (a[i] << 16) | (a[i + 1] << 8); out[k++] = B64T[v2 >> 12] + B64T[v2 & 4095].slice(0, 1) + "="; }
+  if (a.length - n === 1) { var v1 = a[i] << 16; out[k++] = B64T[v1 >> 12] + "=="; }
+  else if (a.length - n === 2) { var v2 = (a[i] << 16) | (a[i + 1] << 8); out[k++] = B64T[v2 >> 12] + B64[(v2 >> 6) & 63] + "="; }
   return out.join("");
 }
 var bmpBytes = null;
