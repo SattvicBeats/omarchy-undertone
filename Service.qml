@@ -46,6 +46,8 @@ Item {
   property string breath: "No pacer"
   property string noise: "Off"
   property var nature: []
+  property string om: "off"
+  property real omlvl: 0.5
   readonly property bool windowOpen: win.visible
   property int visModel: 4               // 0 field · 1 lava · 2 flow · 3 spectrum · 4 cymatics
   property var saverDiag: null
@@ -97,6 +99,8 @@ Item {
     if ("breath" in s) root.breath = String(s.breath)
     if ("noise" in s) root.noise = String(s.noise)
     if ("nature" in s) root.nature = s.nature || []
+    if ("om" in s) root.om = String(s.om)
+    if ("omlvl" in s) root.omlvl = Number(s.omlvl)
   }
 
   // ---- engine process
@@ -149,7 +153,7 @@ Item {
   function hzToPos(f) { return Math.log(Math.max(baseLo, Math.min(baseHi, f)) / baseLo) / Math.log(baseHi / baseLo) }
   function setScene(name) { send({ cmd: "scene", name: String(name) }) }
   // Black Dawn mode: just the two ear tones — the beat is the whole sound
-  function purePair() { root.set({ drone: 0, noise: "Off", nlvl: 0, nature: [], rhythm: "Silent" }) }
+  function purePair() { root.set({ drone: 0, noise: "Off", nlvl: 0, nature: [], rhythm: "Silent", om: "off" }) }
   function rescanClips() { send({ cmd: "clips" }) }
   function setClip(name, o) { o.cmd = "clip"; o.name = name; send(o) }
   function addClip(path) { send({ cmd: "clip", add: String(path) }) }
@@ -169,12 +173,12 @@ Item {
     function stop(): void { root.stop() }
     function playpause(): void { root.togglePlay() }
     function scene(name: string): void { root.setScene(name) }
-    function set(param: string, value: string): void { var o = {}; var k = String(param); var v = Number(value); o[k] = (k === "rhythm" || k === "noise" || k === "breath") ? String(value) : (isFinite(v) ? v : value); root.set(o) }
+    function set(param: string, value: string): void { var o = {}; var k = String(param); var v = Number(value); o[k] = (k === "rhythm" || k === "noise" || k === "breath" || k === "om") ? String(value) : (isFinite(v) ? v : value); root.set(o) }
     function pure(): void { root.purePair() }
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.6.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -549,6 +553,19 @@ Item {
               }
             }
           }
+        }
+
+        // Om
+        PanelSectionHeader { text: "Om" }
+        RowLayout {
+          Layout.fillWidth: true; spacing: Style.space(8)
+          Repeater {
+            model: ["off", "male", "female"]
+            delegate: Button { required property var modelData; text: modelData === "off" ? "Off" : modelData.charAt(0).toUpperCase() + modelData.slice(1); selected: root.om === modelData; onClicked: root.set({ om: modelData }) }
+          }
+          Text { text: "level"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          PanelSlider { Layout.preferredWidth: 160; minimum: 0; maximum: 1; step: 0.01; value: root.omlvl; onMoved: function(v) { root.setLive({ omlvl: v }) }; onReleased: function(v) { root.set({ omlvl: v }) } }
+          Text { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "A synthesised voice on the same Sa as the drone: o → m over eight seconds, then a breath."; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
         }
 
         // noise + places

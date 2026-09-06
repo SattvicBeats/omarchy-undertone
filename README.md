@@ -54,6 +54,13 @@ a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the
 Silence → still. Clips you add drive them exactly the same way, because they are measured
 from the same output.
 
+## Om
+
+A synthesised Om (no sample): a voice source on the same Sa as the tanpura — male (90–150 Hz
+octave) or female (200–330 Hz) — shaped by vowel formants morphing o → m over eight seconds, vibrato,
+a breath pause, ten-second cycle. Panel → Om → Male/Female + level; `omarchy-shell undertone set om female`.
+Scenes: **Om**, **Beach**, **Ocean waves** added; Surf now breaks with a foam hiss at each crest.
+
 ## Breath pacer
 
 A six-petal flower (Apple-Breathe style) that opens on the inhale, holds, and closes on the exhale,

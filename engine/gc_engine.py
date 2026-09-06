@@ -93,11 +93,13 @@ def load_clip(path):
 class Engine:
     def __init__(self):
         self.S = dict(beat=10.0, base=196.0, vol=.35, drone=.5, rhythm="Silent", breath="No pacer",
-                      noise="Off", nlvl=.4, nature=[], timer=0, scene=None)
+                      noise="Off", nlvl=.4, nature=[], timer=0, scene=None, om="off", omlvl=.5)
         self.on = False
         self.t0 = 0            # absolute sample counter while on
         self.timer_end = 0     # absolute sample when timer stops
         self.ph = [0.0, 0.0]   # binaural phases
+        self.om_ph = np.zeros(28)     # Om harmonic phases (additive formant voice)
+        self.om_t = 0.0               # Om cycle clock (s)
         self.fcur = [None, None]   # glided (base, beat): frequencies move toward S over ~20 ms, no clicks while dragging
         self.plucks = []       # (start_sample, freq, amp)
         self.next_pluck = 0
@@ -127,8 +129,9 @@ class Engine:
     # -------------------------------------------------- state changes
     def apply(self, d):
         with self.lock:
-            for k in ("beat", "base", "vol", "drone", "nlvl", "timer"):
+            for k in ("beat", "base", "vol", "drone", "nlvl", "timer", "omlvl"):
                 if k in d and d[k] is not None: self.S[k] = float(d[k])
+            if "om" in d and d["om"] in ("off", "male", "female"): self.S["om"] = d["om"]
             for k in ("rhythm", "breath", "noise"):
                 if k in d and d[k] in ({r["name"] for r in DATA["rhythms"]} | {b["name"] for b in DATA["breaths"]} | set(DATA["noises"])):
                     self.S[k] = d[k]
@@ -140,7 +143,7 @@ class Engine:
     def scene(self, name):
         st = SCN.get(name)
         if not st: return False
-        d = {k: st.get(k) for k in ("beat", "base", "drone", "rhythm", "breath", "noise", "nlvl", "nature", "timer")}
+        d = {k: st.get(k) for k in ("beat", "base", "drone", "rhythm", "breath", "noise", "nlvl", "nature", "timer", "om")}
         d["scene"] = name
         self.apply(d); return True
 
@@ -199,7 +202,7 @@ class Engine:
         return {"on": self.on, "timerLeft": int(self.timer_left()), "beat": self.S["beat"], "base": self.S["base"],
                 "scene": self.S["scene"], "rhythm": self.S["rhythm"], "breath": self.S["breath"],
                 "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
-                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "clips": self.clip_status(), "clipDir": CLIP_DIR}
+                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "om": self.S["om"], "omlvl": self.S["omlvl"], "clips": self.clip_status(), "clipDir": CLIP_DIR}
 
     # -------------------------------------------------- analysis (what the visuals listen to)
     def analyse(self, out):
@@ -394,8 +397,12 @@ class Engine:
                 gust = .6 + .4 * np.sin(2 * np.pi * .07 * (t0 + np.arange(n)) / SR) ** 2
                 lay = b * gust * 1.1
             elif name == "Surf":
-                swell = (.5 + .5 * np.sin(2 * np.pi * (t0 + np.arange(n)) / SR / 9.0)) ** 2
-                p, _ = leaky(w * .05, .985, 0.0); lay = p * swell * 1.2
+                ph9 = 2 * np.pi * (t0 + np.arange(n)) / SR / 9.0
+                swell = (.5 + .5 * np.sin(ph9)) ** 2
+                crest = np.clip(np.sin(ph9 + 1.1), 0, 1) ** 4                   # foam hiss just after the peak
+                p, _ = leaky(w * .05, .985, 0.0)
+                hp, _ = leaky(w, .6, 0.0); hiss = (w - hp * .6) * .05
+                lay = p * swell * 1.2 + hiss * crest
             elif name == "Fire":
                 b, _ = leaky(w * .03, .99, 0.0)
                 crack = (self.rng.random(n) < .0008) * self.rng.standard_normal(n) * .6
@@ -407,6 +414,41 @@ class Engine:
             else: continue
             out[:, 0] += lay; out[:, 1] += lay * .92
 
+        # Om — additive formant voice on Sa. o → m over the phonation, breath pause, ~10 s cycle.
+        if S["om"] != "off" and S["omlvl"] > 0:
+            sa = S["base"]
+            lo_, hi_ = (90.0, 150.0) if S["om"] == "male" else (200.0, 330.0)
+            f0 = sa
+            while f0 > hi_: f0 /= 2.0
+            while f0 < lo_: f0 *= 2.0
+            T = 10.0
+            tt = (self.om_t + np.arange(n) / SR) % T
+            self.om_t = (self.om_t + n / SR) % T
+            # cycle envelope: 0–0.9 breath, 0.9–8.6 phonation (o then m), tail fade
+            env = np.clip((tt - 0.9) / 0.9, 0, 1) * np.clip((8.9 - tt) / 0.6, 0, 1)
+            morph = np.clip((tt - 3.2) / 2.2, 0, 1)                         # 0 = "o", 1 = "m"
+            vib = 1.0 + 0.0045 * np.sin(2 * np.pi * 5.3 * (self.t0 + np.arange(n)) / SR)
+            f = f0 * vib
+            # formants (Hz, bandwidth) for "o" and the closed-lips "m" hum
+            Fo = np.array([450.0, 800.0, 2830.0]); Bo = np.array([90.0, 110.0, 160.0]); Ao = np.array([1.0, 0.7, 0.18])
+            Fm = np.array([250.0, 1200.0, 2500.0]); Bm = np.array([80.0, 180.0, 220.0]); Am = np.array([1.0, 0.12, 0.05])
+            harm = np.arange(1, 29)                                            # 28 harmonics (≤ 3.8 kHz for a 136 Hz Sa): a voice, not a buzz
+            mid = float(morph[n // 2])                                         # formants move over seconds: once per block
+            F = Fo * (1 - mid) + Fm * mid; B = Bo * (1 - mid) + Bm * mid; A = Ao * (1 - mid) + Am * mid
+            hf0 = harm * f0                                                    # (40,) harmonic frequencies at block centre
+            amp = np.zeros(28)
+            for k in range(3):
+                amp += A[k] / (1.0 + ((hf0 - F[k]) / B[k]) ** 2)
+            amp *= (1.0 / harm) ** 0.55                                        # glottal rolloff
+            amp *= (hf0 < 6000)                                                # band-limit
+            hf = harm[:, None] * f[None, :]                                    # (40, n) with vibrato
+            ph = self.om_ph[:, None] + 2 * np.pi * np.cumsum(hf, axis=1) / SR
+            self.om_ph = np.mod(ph[:, -1] + 2 * np.pi * hf[:, -1] / SR, 2 * np.pi)
+            voice = (amp[:, None] * np.sin(ph)).sum(axis=0)
+            voice = voice / (np.abs(voice).max() + 1e-6) * env * 0.42 * S["omlvl"]
+            breath = self.rng.standard_normal(n) * 0.006 * np.clip((0.9 - tt) / 0.9, 0, 1) * S["omlvl"]
+            hp, _ = leaky(breath, .7, 0.0); breath = breath - hp * .7
+            out[:, 0] += voice + breath; out[:, 1] += voice * 0.97 + breath
         # user clips
         with self.lock: clips = [c for c in self.clips.values() if c["on"] and c["data"] is not None]
         for c in clips:

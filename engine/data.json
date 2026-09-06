@@ -312,6 +312,65 @@
    "who": "fungus",
    "evidence": "series",
    "desc": "Mycelium carries electrical spike trains minutes long (Adamatzky 2022). None of it is in the audio band. This is the scene the novels are built on. Base is A1 \u2014 felt more than heard."
+  },
+  {
+   "name": "Beach",
+   "set": {
+    "beat": 6,
+    "base": 174,
+    "drone": 0.15,
+    "rhythm": "Silent",
+    "breath": "Coherent",
+    "noise": "Pink",
+    "nlvl": 0.15,
+    "nature": [
+     "Surf",
+     "Wind"
+    ],
+    "timer": 0,
+    "om": "off"
+   },
+   "who": "Sitting by the water",
+   "evidence": "tradition",
+   "desc": "Slow surf at nine seconds a set, a little wind, a low pink floor under a theta pair. The tanpura is barely there \u2014 the sea is the drone."
+  },
+  {
+   "name": "Ocean waves",
+   "set": {
+    "beat": 3,
+    "base": 110,
+    "drone": 0,
+    "rhythm": "Silent",
+    "breath": "4-7-8",
+    "noise": "Brown",
+    "nlvl": 0.3,
+    "nature": [
+     "Surf"
+    ],
+    "timer": 45,
+    "om": "off"
+   },
+   "who": "Falling asleep to the sea",
+   "evidence": "series",
+   "desc": "Heavy sets, brown floor, delta pair on a low A, 45-minute fade. Broadband ocean noise has the best sleep-onset evidence of the nature layers."
+  },
+  {
+   "name": "Om",
+   "set": {
+    "beat": 7.83,
+    "base": 136,
+    "drone": 0.35,
+    "rhythm": "Silent",
+    "breath": "Box",
+    "noise": "Off",
+    "nlvl": 0,
+    "nature": [],
+    "timer": 0,
+    "om": "male"
+   },
+   "who": "Chant with the drone",
+   "evidence": "tradition",
+   "desc": "A synthesised Om on the same Sa as the tanpura, o \u2192 m over eight seconds, then a breath. Switch voice under Om. Chant with it or let it carry."
   }
  ],
  "rhythms": [
@@ -1001,5 +1060,10 @@
    "F": "#0C0603",
    "I": "#F6DEC2"
   }
+ ],
+ "om": [
+  "off",
+  "male",
+  "female"
  ]
 }
