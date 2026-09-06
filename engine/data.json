@@ -3,22 +3,22 @@
   {
    "name": "Delta",
    "beat": 2,
-   "desc": "Deep sleep. 0.5–4 Hz."
+   "desc": "Deep sleep. 0.5\u20134 Hz."
   },
   {
    "name": "Theta",
    "beat": 6,
-   "desc": "Deep meditation, the edge of dreaming. 4–8 Hz."
+   "desc": "Deep meditation, the edge of dreaming. 4\u20138 Hz."
   },
   {
    "name": "Schumann",
    "beat": 7.83,
-   "desc": "The Earth–ionosphere cavity's fundamental."
+   "desc": "The Earth\u2013ionosphere cavity's fundamental."
   },
   {
    "name": "Alpha",
    "beat": 10,
-   "desc": "Relaxed and awake, eyes closed. 8–12 Hz."
+   "desc": "Relaxed and awake, eyes closed. 8\u201312 Hz."
   },
   {
    "name": "Mu",
@@ -28,12 +28,12 @@
   {
    "name": "Beta",
    "beat": 20,
-   "desc": "Concentration, moderate alertness. 12–30 Hz."
+   "desc": "Concentration, moderate alertness. 12\u201330 Hz."
   },
   {
    "name": "Gamma",
    "beat": 40,
-   "desc": "Alert, high-resolution perception. 30–50 Hz."
+   "desc": "Alert, high-resolution perception. 30\u201350 Hz."
   },
   {
    "name": "47 Hz",
@@ -95,7 +95,7 @@
    },
    "who": "human",
    "evidence": "tradition",
-   "desc": "Schumann beat on 136 Hz — the tone Indian tradition calls Om. The 7.83 Hz is a measured atmospheric resonance; the pairing is belief."
+   "desc": "Schumann beat on 136 Hz \u2014 the tone Indian tradition calls Om. The 7.83 Hz is a measured atmospheric resonance; the pairing is belief."
   },
   {
    "name": "Focus",
@@ -113,7 +113,7 @@
    },
    "who": "human",
    "evidence": "tradition",
-   "desc": "Low beta over a light Keherwa. Some studies find modest attention gains at 14–16 Hz; others find nothing. Cheap to try."
+   "desc": "Low beta over a light Keherwa. Some studies find modest attention gains at 14\u201316 Hz; others find nothing. Cheap to try."
   },
   {
    "name": "Heart",
@@ -189,7 +189,7 @@
    },
    "who": "human",
    "evidence": "measured",
-   "desc": "Camping. Rain on canvas with a little wind; also the best snore mask there is. Steady broadband sound masks sudden noises — that part is just physics."
+   "desc": "Camping. Rain on canvas with a little wind; also the best snore mask there is. Steady broadband sound masks sudden noises \u2014 that part is just physics."
   },
   {
    "name": "Campfire",
@@ -253,7 +253,7 @@
    },
    "who": "animal",
    "evidence": "measured",
-   "desc": "Reggae under the dog filter, with drift on. Shelter dogs relaxed most to reggae and soft rock (Bowman 2017) and stopped responding to any one track within days — so this one slowly changes. Speaker, low."
+   "desc": "Reggae under the dog filter, with drift on. Shelter dogs relaxed most to reggae and soft rock (Bowman 2017) and stopped responding to any one track within days \u2014 so this one slowly changes. Speaker, low."
   },
   {
    "name": "Cat",
@@ -311,7 +311,7 @@
    },
    "who": "fungus",
    "evidence": "series",
-   "desc": "Mycelium carries electrical spike trains minutes long (Adamatzky 2022). None of it is in the audio band. This is the scene the novels are built on. Base is A1 — felt more than heard."
+   "desc": "Mycelium carries electrical spike trains minutes long (Adamatzky 2022). None of it is in the audio band. This is the scene the novels are built on. Base is A1 \u2014 felt more than heard."
   }
  ],
  "rhythms": [
@@ -338,7 +338,7 @@
      ]
     ]
    },
-   "desc": "Lub–dub at a resting pulse, 58 per minute."
+   "desc": "Lub\u2013dub at a resting pulse, 58 per minute."
   },
   {
    "name": "Reggae one-drop",
@@ -652,7 +652,7 @@
      ]
     ]
    },
-   "desc": "Seven matras, 3+2+2. The only taal whose sam is khali — it begins empty."
+   "desc": "Seven matras, 3+2+2. The only taal whose sam is khali \u2014 it begins empty."
   },
   {
    "name": "Jhaptaal",
@@ -908,5 +908,98 @@
   "Fire",
   "Surf",
   "Crickets"
+ ],
+ "palettes": [
+  {
+   "name": "Station",
+   "L": "#F2C063",
+   "R": "#7FB7C9",
+   "F": "#0D1322",
+   "I": "#E8E4D9"
+  },
+  {
+   "name": "Jamaica",
+   "L": "#FED100",
+   "R": "#009B3A",
+   "F": "#000000",
+   "I": "#FFFFFF"
+  },
+  {
+   "name": "Tiranga",
+   "L": "#FF9933",
+   "R": "#138808",
+   "F": "#0B0F1A",
+   "I": "#FFFFFF"
+  },
+  {
+   "name": "Ember",
+   "L": "#E0413A",
+   "R": "#7A1F1F",
+   "F": "#120808",
+   "I": "#F3D9C8"
+  },
+  {
+   "name": "Golden",
+   "L": "#D4A017",
+   "R": "#5C6B2E",
+   "F": "#0E1208",
+   "I": "#F0E6C8"
+  },
+  {
+   "name": "Ocean",
+   "L": "#3FA7D6",
+   "R": "#0A3D62",
+   "F": "#031421",
+   "I": "#DDEFF7"
+  },
+  {
+   "name": "Rose",
+   "L": "#E88FA8",
+   "R": "#6A2C55",
+   "F": "#150910",
+   "I": "#F9E4EC"
+  },
+  {
+   "name": "Mono",
+   "L": "#FFFFFF",
+   "R": "#666666",
+   "F": "#000000",
+   "I": "#FFFFFF"
+  },
+  {
+   "name": "Mycelium",
+   "L": "#C9A66B",
+   "R": "#5E7A4A",
+   "F": "#0F0D08",
+   "I": "#EDE3CC"
+  },
+  {
+   "name": "Kennel",
+   "L": "#FED100",
+   "R": "#009B3A",
+   "F": "#0B1A10",
+   "I": "#F4F1E6"
+  },
+  {
+   "name": "Savanna",
+   "L": "#E3A857",
+   "R": "#4B3A7A",
+   "F": "#0A0714",
+   "I": "#F1E7D0"
+  },
+  {
+   "name": "Canvas",
+   "L": "#8FB3C7",
+   "R": "#3C5A6B",
+   "F": "#0B141A",
+   "I": "#DCE8EE"
+  },
+  {
+   "name": "Firelight",
+   "L": "#F28C28",
+   "R": "#6B2E0F",
+   "F": "#0C0603",
+   "I": "#F6DEC2"
+  }
  ]
 }

@@ -50,6 +50,13 @@ Item {
   property int visModel: 0               // 0 field · 1 lava · 2 flow
   property var saverDiag: null
   property string painter: "bmp"
+  property string palette: "Station"     // a name from tables.palettes, or "Omarchy" to follow the theme
+  readonly property var pal: {
+    if (palette === "Omarchy") return { L: Color.accent, R: Color.urgent, F: Color.background, I: Color.foreground }
+    var ps = tables && tables.palettes ? tables.palettes : []
+    for (var i = 0; i < ps.length; i++) if (ps[i].name === palette) return ps[i]
+    return { L: "#F2C063", R: "#7FB7C9", F: "#0D1322", I: "#E8E4D9" }
+  }
   property int screensaverAfter: 0       // manual idle seconds; 0 = off (used when systemSaver is false)
   property bool systemSaver: false       // true: Undertone IS the screensaver — fires on Omarchy's own idle timing
   readonly property int omarchySaverSeconds: {
@@ -136,7 +143,8 @@ Item {
     function scene(name: string): void { root.setScene(name) }
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
-    function diag(): string { return JSON.stringify({ version: "0.3.7", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function palette(name: string): void { root.palette = String(name) }
+    function diag(): string { return JSON.stringify({ version: "0.3.8", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2 }
     function status(): string {
@@ -188,6 +196,7 @@ Item {
         if ("visModel" in o) root.visModel = o.visModel | 0
         if ("screensaverAfter" in o) root.screensaverAfter = o.screensaverAfter | 0
         if ("systemSaver" in o) root.systemSaver = o.systemSaver === true
+        if ("palette" in o) root.palette = String(o.palette)
       } catch (e) {}
       root.stateLoaded = true
     }
@@ -197,7 +206,7 @@ Item {
   Process { id: stateWriter }
   function saveState() {
     if (!stateLoaded) return
-    var j = JSON.stringify({ visModel: visModel, screensaverAfter: screensaverAfter, systemSaver: systemSaver })
+    var j = JSON.stringify({ visModel: visModel, screensaverAfter: screensaverAfter, systemSaver: systemSaver, palette: palette })
     stateWriter.command = ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s\n' \"$2\" > \"$1\"", "_", stateFile, j]
     stateWriter.running = true
   }
@@ -212,6 +221,7 @@ Item {
   onVisModelChanged: saveState()
   onScreensaverAfterChanged: saveState()
   onSystemSaverChanged: saveState()
+  onPaletteChanged: saveState()
 
   Loader {
     id: saverLoader
@@ -222,7 +232,7 @@ Item {
         required property var modelData
         screen: modelData
         anchors { top: true; bottom: true; left: true; right: true }
-        color: Color.background
+        color: root.pal.F
         WlrLayershell.namespace: "undertone-screensaver"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -234,7 +244,7 @@ Item {
           anchors.fill: parent
           model: root.visModel
           beat: root.beat; base: root.base
-          colL: Color.accent; colR: Color.urgent; colF: Color.background
+          colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
           bufferWidth: 320
           fps: 30
@@ -309,14 +319,15 @@ Item {
         Rectangle {
           Layout.fillWidth: true
           implicitHeight: Math.round(width * 0.42)
-          radius: Style.cornerRadius; color: Color.background; clip: true
+          radius: Style.cornerRadius; color: root.pal.F; clip: true
           Visual {
             id: panelVisual
+            bufferWidth: 240
             painter: root.painter
             anchors.fill: parent
             model: root.visModel
             beat: root.beat; base: root.base
-            colL: Color.accent; colR: Color.urgent; colF: Color.background
+            colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
             running: win.visible && !root.saverOpen
           }
@@ -330,6 +341,25 @@ Item {
           }
           Item { Layout.fillWidth: true }
           Button { text: "Screensaver"; tooltipText: "Fullscreen on every monitor; any key or mouse movement closes it"; onClicked: root.openSaver() }
+        }
+        Flow {
+          Layout.fillWidth: true; spacing: Style.space(6)
+          Repeater {
+            model: [{ name: "Omarchy", L: Color.accent, R: Color.urgent, F: Color.background }].concat(root.tables && root.tables.palettes ? root.tables.palettes : [])
+            delegate: Rectangle {
+              required property var modelData
+              width: sw.implicitWidth + Style.space(22); height: Style.font.body + Style.space(14); radius: height / 2
+              color: modelData.F; border.width: root.palette === modelData.name ? 2 : 1
+              border.color: root.palette === modelData.name ? Color.foreground : Qt.rgba(1, 1, 1, 0.18)
+              Row {
+                anchors.centerIn: parent; spacing: Style.space(6)
+                Rectangle { width: 10; height: 10; radius: 5; color: modelData.L; anchors.verticalCenter: parent.verticalCenter }
+                Rectangle { width: 10; height: 10; radius: 5; color: modelData.R; anchors.verticalCenter: parent.verticalCenter }
+                Text { id: sw; text: modelData.name; color: Qt.lighter(modelData.L, 1.2); font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+              }
+              MouseArea { anchors.fill: parent; onClicked: root.palette = modelData.name }
+            }
+          }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(8)
