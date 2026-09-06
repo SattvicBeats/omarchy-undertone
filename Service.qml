@@ -70,11 +70,14 @@ Item {
   signal hit(real amp)
   property var audio: [0, 0, 0, 0, 0, 0, 0]
   property var spectrum: []
+  property var plateMsg: null           // the solved plate (eigenmode LUT + n list), arrives once from the engine
+  property var modeAmps: []
   property var clips: []
   property string clipDir: ""
 
   function applyStatus(s) {
-    if ("a" in s) { if ("s" in s) root.spectrum = s.s; root.audio = s.a; return }
+    if ("plate" in s) { root.plateMsg = s.plate; return }
+    if ("a" in s) { if ("s" in s) root.spectrum = s.s; if ("p" in s) root.modeAmps = s.p; root.audio = s.a; return }
     if ("hit" in s) { root.hit(Number(s.hit) || 0); return }
     if ("clips" in s) root.clips = s.clips || []
     if ("clipDir" in s) root.clipDir = String(s.clipDir)
@@ -154,7 +157,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.4.2", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.5.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
@@ -258,7 +261,8 @@ Item {
           beat: root.beat; base: root.base
           colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum) } }
+            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
+            Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
           bufferWidth: 320
           fps: 30
         }
@@ -342,7 +346,8 @@ Item {
             beat: root.beat; base: root.base
             colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum) } }
+            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
+          Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
             running: win.visible && !root.saverOpen
           }
           Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }

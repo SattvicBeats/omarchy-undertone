@@ -11,6 +11,8 @@ Test:  gc_engine.py --out mix.wav --seconds 6 --scene Flow
 """
 import sys, os, json, time, math, threading, subprocess, argparse, wave, struct
 import numpy as np
+import base64
+import plate as PLATE
 
 SR = 48000
 BLOCK = 1024
@@ -113,6 +115,11 @@ class Engine:
         self.peaks = [0.0, 0.0]                                        # measured strongest tone per ear, Hz
         self.win = np.hanning(8192).astype(np.float32)
         edges = np.geomspace(40, 16000, 33); self.bandIdx = np.searchsorted(np.fft.rfftfreq(8192, 1 / SR), edges)
+        self.bandHz = np.sqrt(edges[:-1] * edges[1:])                 # band centres, for the plate response
+        self.plate = None                                              # dict(modes, lut) once solved
+        self.plate_msg = None                                          # the one-time message for the visual
+        self.mode_amp = None                                           # smoothed per-mode response
+        threading.Thread(target=self.solve_plate, daemon=True).start()
         self.lock = threading.Lock()
 
     # -------------------------------------------------- state changes
@@ -205,6 +212,34 @@ class Engine:
         for key, val in (("rms", e(m)), ("lo", e(lo)), ("mid", e(mid)), ("hi", e(hi))):
             a[key] += (val - a[key]) * (k if val > a[key] else k * .5)   # fast attack, slower release
 
+    def solve_plate(self):
+        """Free-edge circular plate eigenmodes (see plate.py). Cached on disk; ~3 s cold."""
+        cache_dir = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+        cache = os.path.join(cache_dir, "undertone", "plate-v1.json")
+        modes = None
+        try:
+            with open(cache) as fh: modes = json.load(fh)
+        except Exception: pass
+        if not modes:
+            modes = PLATE.plate_table()
+            try:
+                os.makedirs(os.path.dirname(cache), exist_ok=True)
+                with open(cache, "w") as fh: json.dump(modes, fh)
+            except Exception: pass
+        lut = PLATE.radial_lut(modes, 256)                             # (M, 256) in [-1, 1]
+        # pack the LUT as an 8-bit BMP (rows = modes, x = radius) for the shader to sample
+        M, N = lut.shape
+        g = np.clip(np.round((lut + 1.0) * 127.5), 0, 255).astype(np.uint8)
+        pad = (4 - (N * 3) % 4) % 4; rowb = N * 3 + pad
+        hdr = b"BM" + (54 + rowb * M).to_bytes(4, "little") + b"\0\0\0\0" + (54).to_bytes(4, "little")
+        hdr += (40).to_bytes(4, "little") + N.to_bytes(4, "little") + M.to_bytes(4, "little") + (1).to_bytes(2, "little") + (24).to_bytes(2, "little") + b"\0" * 4 + (rowb * M).to_bytes(4, "little") + b"\0" * 16
+        body = b"".join(bytes(np.repeat(g[M - 1 - r], 3)) + b"\0" * pad for r in range(M))   # BMP rows bottom-up
+        with self.lock:
+            self.plate = dict(modes=modes, lut=lut)
+            self.mode_amp = np.zeros(M)
+            self.plate_msg = {"plate": {"count": M, "n": [m["n"] for m in modes], "f": [round(m["f"], 1) for m in modes],
+                                        "lut": "data:image/bmp;base64," + base64.b64encode(hdr + body).decode("ascii")}}
+
     def spectrum(self):
         """FFT of the last 171 ms: 32 log bands (40 Hz-16 kHz) and the strongest tone in each ear."""
         r = self.ring
@@ -223,12 +258,17 @@ class Engine:
         bands = np.array([M[self.bandIdx[i]:max(self.bandIdx[i] + 1, self.bandIdx[i + 1])].max() for i in range(32)])
         bands = np.clip((np.log10(bands + 1e-3) + 1.0) / 3.2, 0, 1)      # ~ -20 dB .. +44 dB window
         self.bands += (bands - self.bands) * np.where(bands > self.bands, .5, .18)
+        if self.plate is not None:                                      # plate response to the measured spectrum
+            amp = PLATE.response(self.plate["modes"], self.bandHz, self.bands ** 2)
+            amp = amp / (amp.max() + 1e-9) * min(1.0, self.an["rms"] * 3.0)
+            self.mode_amp += (amp - self.mode_amp) * np.where(amp > self.mode_amp, .45, .12)
 
     def analysis(self):
         a = self.an
         return {"a": [round(min(1.0, a["rms"] * 2.2), 3), round(min(1.0, a["lo"] * 4.0), 3), round(min(1.0, a["mid"] * 3.0), 3), round(min(1.0, a["hi"] * 6.0), 3),
                       round(self.peaks[0], 2), round(self.peaks[1], 2), 1 if self.on else 0],
-                "s": [int(v * 100) for v in self.bands]}
+                "s": [int(v * 100) for v in self.bands],
+                "p": [int(v * 100) for v in self.mode_amp] if self.mode_amp is not None else []}
 
     # -------------------------------------------------- synthesis
     def block(self):
@@ -442,6 +482,10 @@ def main():
             blk += 1
             if blk % 2 == 0:
                 eng.spectrum(); emit(eng.analysis())          # ~23 Hz
+        with eng.lock: pm = eng.plate_msg
+        if pm is not None:
+            with eng.lock: eng.plate_msg = None
+            emit(pm)
         else:
             if proc is not None:
                 try: proc.stdin.close()

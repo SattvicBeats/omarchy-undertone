@@ -23,6 +23,13 @@ Item {
   property string painter: "bmp"       // JS path for Flow / fallback: "bmp" (Image from data URL) | "rects" (Canvas fillRect)
   property bool gpu: true              // field + lava as fragment shaders at native resolution
   readonly property bool useGpu: gpu && (model === 0 || model === 1 || model === 4)
+  // Chladni plate from the engine: eigenmode LUT (texture) + streamed per-mode amplitudes
+  property var plateN: []
+  property int plateCount: 0
+  property string plateLut: ""
+  property var plateAmps: []
+  function setPlate(p) { plateN = p.n; plateCount = p.count; plateLut = p.lut }
+  function setModeAmps(pa) { plateAmps = pa }
   property real hitLevel: 0
   property real shaderTime: 0
   // live analysis from the engine (Service pushes these ~23x/s)
@@ -106,22 +113,38 @@ Item {
       }
     }
   }
+  // the LUT image is only created once the plate message has arrived: an Image created
+  // with an empty source never becomes a valid texture provider for the effect
+  Loader {
+    id: lutLoader
+    active: host.plateLut !== ""
+    sourceComponent: Image { source: host.plateLut; width: 256; height: 32; visible: false; cache: false; asynchronous: false; smooth: true; mipmap: false }
+  }
+  readonly property bool lutReady: lutLoader.item !== null && lutLoader.item.status === Image.Ready
+  // while the plate is not solved yet (first ~3 s), show the plain plate
+  Rectangle { anchors.centerIn: parent; width: Math.min(parent.width, parent.height) * 0.995; height: width; radius: width / 2; visible: host.useGpu && host.model === 4 && !host.lutReady; color: Qt.lighter(host.colF, 1.35); border.width: 2; border.color: Qt.rgba(host.colL.r, host.colL.g, host.colL.b, 0.25) }
   ShaderEffect {
     id: cymFx
     anchors.fill: parent
-    visible: host.useGpu && host.model === 4
+    visible: host.useGpu && host.model === 4 && host.lutReady
     property real time: host.shaderTime
-    property real fL: host.fL
-    property real fR: host.fR
     property real aspect: width / Math.max(1, height)
     property real energy: host.energy
-    property real beatPhase: host.beatPhase
     property real hit: host.hitLevel
-    property real lo: host.lo
+    property real count: host.plateCount
+    property real pad0: 0
+    property real pad1: 0
+    property real pad2: 0
     property color colL: host.colL
     property color colR: host.colR
     property color colF: host.colF
-    fragmentShader: Qt.resolvedUrl("shaders/cymatics.frag.qsb")
+    function v4(arr, i, div) { return Qt.vector4d((arr[i] || 0) / div, (arr[i + 1] || 0) / div, (arr[i + 2] || 0) / div, (arr[i + 3] || 0) / div) }
+    property vector4d a0: v4(host.plateAmps, 0, 100); property vector4d a1: v4(host.plateAmps, 4, 100); property vector4d a2: v4(host.plateAmps, 8, 100); property vector4d a3: v4(host.plateAmps, 12, 100)
+    property vector4d a4: v4(host.plateAmps, 16, 100); property vector4d a5: v4(host.plateAmps, 20, 100); property vector4d a6: v4(host.plateAmps, 24, 100)
+    property vector4d n0: v4(host.plateN, 0, 1); property vector4d n1: v4(host.plateN, 4, 1); property vector4d n2: v4(host.plateN, 8, 1); property vector4d n3: v4(host.plateN, 12, 1)
+    property vector4d n4: v4(host.plateN, 16, 1); property vector4d n5: v4(host.plateN, 20, 1); property vector4d n6: v4(host.plateN, 24, 1)
+    property variant lut: lutLoader.item
+    fragmentShader: Qt.resolvedUrl("shaders/plate.frag.qsb")
     onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "cymatics shader: " + log; host.gpu = false }
   }
   function gpuFrame(dt) {
