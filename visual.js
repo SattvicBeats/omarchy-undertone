@@ -7,6 +7,8 @@ var img = null, d = null;             // {width,height,data} provided by host (C
 var RGB = { L: [242, 192, 99], R: [127, 183, 201], bg2: [13, 19, 34] };
 var S = { beat: 10, base: 196, vis: 0 };
 var blobs = [], parts = null, perm = [], hitFlash = 0, breath = null;
+var A = { energy: 0, lo: 0, mid: 0, hi: 0, phase: 0, on: 0 };   // live audio analysis from the engine
+function setAudio(energy, lo, mid, hi, phase, on) { A.energy = +energy || 0; A.lo = +lo || 0; A.mid = +mid || 0; A.hi = +hi || 0; A.phase = +phase || 0; A.on = on ? 1 : 0; }
 
 function hex2rgb(h) { h = String(h).replace("#", ""); if (h.length === 8) h = h.slice(0, 6); var n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function setPalette(L, R, F) { RGB.L = hex2rgb(L); RGB.R = hex2rgb(R); RGB.bg2 = hex2rgb(F); }
@@ -34,18 +36,18 @@ function put(p, B, Lc, Rc, a, c, g) {
 
 // --- model 0: interference field ---
 function drawField(t) {
-  var drift = t * Math.min(2, Math.max(.3, S.beat / 10)), kL = 0.09 * Math.pow(S.base / 196, .35), kR = kL * (1 + S.beat / S.base * 40);
+  var drift = A.phase + t * 0.15, loud = 0.25 + 0.75 * A.energy, kL = 0.09 * Math.pow(S.base / 196, .35), kR = kL * (1 + S.beat / S.base * 40);
   var sx = FW * 0.32, sy = FH / 2, p = 0, B = RGB.bg2, Lc = RGB.L, Rc = RGB.R;
   for (var y = 0; y < FH; y++) for (var x = 0; x < FW; x++, p += 4) {
     var dx1 = x - sx, dx2 = x - (FW - sx), dy = y - sy, r1 = Math.sqrt(dx1 * dx1 + dy * dy), r2 = Math.sqrt(dx2 * dx2 + dy * dy);
     var v = (Math.cos(kL * r1 - drift) + Math.cos(kR * r2 + drift)) / 2;
-    put(p, B, Lc, Rc, Math.max(0, v), Math.max(0, -v), 0.15 + 0.85 * Math.abs(v));
+    put(p, B, Lc, Rc, Math.max(0, v) * loud, Math.max(0, -v) * loud, (0.15 + 0.85 * Math.abs(v)) * (0.5 + 0.5 * loud));
   }
 }
 
 // --- model 1: lava — metaballs with a thermal loop ---
 function stepLava(dt) {
-  var heat = 0.25 + 0.35 * Math.min(1, S.beat / 20), g = 9.0;
+  var heat = 0.15 + 0.55 * A.lo + 0.2 * A.energy, g = 9.0;    // bass heats the plate
   blobs.forEach(function (b) {
     var depth = b.y / FH;
     b.T += dt * (depth > 0.85 ? heat : (depth < 0.15 ? -0.35 : -0.08)); b.T = Math.max(0, Math.min(1, b.T));
@@ -83,7 +85,7 @@ function drawFlow(t, dt) {
   if (!parts) { parts = []; for (var i = 0; i < 700; i++) parts.push({ x: Math.random() * FW, y: Math.random() * FH, c: Math.random() }); }
   var B = RGB.bg2;
   for (var p = 0; p < d.length; p += 4) { d[p] += (B[0] - d[p]) * 0.06; d[p + 1] += (B[1] - d[p + 1]) * 0.06; d[p + 2] += (B[2] - d[p + 2]) * 0.06; d[p + 3] = 255; }
-  var sc = 0.045, tz = t * 0.12 * Math.min(2, Math.max(.4, S.beat / 10)), eps = 0.6, spd = (6 + S.beat * 0.4) * dt * 10 + hitFlash * 8;
+  var sc = 0.045, tz = t * 0.12 * Math.min(2, Math.max(.4, S.beat / 10)), eps = 0.6, spd = (2 + 14 * (A.mid * 0.6 + A.hi * 0.4) + 3 * A.energy) * dt * 10 + hitFlash * 8;   // motion follows mid/high energy
   parts.forEach(function (q) {
     var n1 = vnoise(q.x * sc, (q.y + eps) * sc, tz), n2 = vnoise(q.x * sc, (q.y - eps) * sc, tz), n3 = vnoise((q.x + eps) * sc, q.y * sc, tz), n4 = vnoise((q.x - eps) * sc, q.y * sc, tz);
     var vx = (n1 - n2) / (2 * eps), vy = -(n3 - n4) / (2 * eps), m = Math.sqrt(vx * vx + vy * vy) + 1e-6; q.x += vx / m * spd; q.y += vy / m * spd;

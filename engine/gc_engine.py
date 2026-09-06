@@ -57,6 +57,36 @@ def voice(kind):
 
 VOICES = {k: voice(k) for k in ("thump", "dha", "tin", "na")}
 
+CLIP_DIR = os.environ.get("UNDERTONE_CLIPS") or os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"), "undertone", "clips")
+CLIP_EXT = (".wav", ".flac", ".mp3", ".ogg", ".opus", ".m4a", ".aiff", ".aif")
+
+def load_clip(path):
+    """Return float32 (n,2) at SR. WAV via stdlib; anything else via ffmpeg if present."""
+    try:
+        if path.lower().endswith(".wav"):
+            with wave.open(path, "rb") as w:
+                ch, sw, fr, n = w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()
+                raw = w.readframes(n)
+            if sw == 2: a = np.frombuffer(raw, "<i2").astype(np.float32) / 32768.0
+            elif sw == 4: a = np.frombuffer(raw, "<i4").astype(np.float32) / 2147483648.0
+            elif sw == 1: a = (np.frombuffer(raw, "u1").astype(np.float32) - 128) / 128.0
+            else: return None, "unsupported wav sample width %d" % sw
+            a = a.reshape(-1, ch)
+        else:
+            out = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "f32le", "-ac", "2", "-ar", str(SR), "-"], capture_output=True)
+            if out.returncode != 0: return None, "ffmpeg: " + out.stderr.decode(errors="ignore").strip()[:120]
+            a = np.frombuffer(out.stdout, "<f4").reshape(-1, 2); fr = SR; ch = 2
+        if ch == 1: a = np.repeat(a, 2, axis=1)
+        elif ch > 2: a = a[:, :2]
+        if fr != SR:
+            n2 = int(len(a) * SR / fr); x = np.linspace(0, len(a) - 1, n2)
+            a = np.stack([np.interp(x, np.arange(len(a)), a[:, 0]), np.interp(x, np.arange(len(a)), a[:, 1])], 1)
+        return np.ascontiguousarray(a, dtype=np.float32), None
+    except FileNotFoundError:
+        return None, "ffmpeg not installed (needed for non-WAV)"
+    except Exception as e:
+        return None, str(e)[:120]
+
 # ------------------------------------------------------------------ engine
 class Engine:
     def __init__(self):
@@ -75,6 +105,9 @@ class Engine:
         self.rng = np.random.default_rng()
         self.master = 0.0      # smoothed master gain (0..1) for fades
         self.hits = []         # strong hits since last drain, for the visual pulse
+        self.clips = {}        # name -> dict(data, pos, gain, loop, on, err)
+        self.an = {"rms": 0.0, "lo": 0.0, "mid": 0.0, "hi": 0.0}   # smoothed analysis
+        self.anst = {"lo": 0.0, "hi": 0.0}                            # filter state
         self.lock = threading.Lock()
 
     # -------------------------------------------------- state changes
@@ -97,6 +130,41 @@ class Engine:
         d["scene"] = name
         self.apply(d); return True
 
+    def scan_clips(self):
+        try: os.makedirs(CLIP_DIR, exist_ok=True)
+        except Exception: pass
+        names = sorted(f for f in os.listdir(CLIP_DIR) if f.lower().endswith(CLIP_EXT)) if os.path.isdir(CLIP_DIR) else []
+        with self.lock:
+            for n in names:
+                if n not in self.clips: self.clips[n] = dict(data=None, pos=0, gain=0.6, loop=True, on=False, err=None, path=os.path.join(CLIP_DIR, n))
+            for n in list(self.clips):
+                if n not in names and not self.clips[n].get("external"): del self.clips[n]
+        return names
+
+    def add_clip(self, path):
+        name = os.path.basename(path)
+        with self.lock:
+            self.clips[name] = dict(data=None, pos=0, gain=0.6, loop=True, on=False, err=None, path=path, external=True)
+        return name
+
+    def set_clip(self, name, d):
+        with self.lock:
+            c = self.clips.get(name)
+            if not c: return False
+            if "gain" in d: c["gain"] = max(0.0, min(2.0, float(d["gain"])))
+            if "loop" in d: c["loop"] = bool(d["loop"])
+            if "on" in d:
+                c["on"] = bool(d["on"])
+                if c["on"] and c["data"] is None and c["err"] is None:
+                    data, err = load_clip(c["path"]); c["data"] = data; c["err"] = err; c["pos"] = 0
+                    if err: c["on"] = False
+            if d.get("restart"): c["pos"] = 0
+        return True
+
+    def clip_status(self):
+        return [{"name": n, "on": c["on"], "gain": round(c["gain"], 2), "loop": c["loop"], "loaded": c["data"] is not None,
+                 "seconds": round(len(c["data"]) / SR, 1) if c["data"] is not None else None, "err": c["err"]} for n, c in sorted(self.clips.items())]
+
     def arm_timer(self):
         self.timer_end = (self.t0 + int(self.S["timer"] * 60 * SR)) if (self.on and self.S["timer"] > 0) else 0
 
@@ -117,7 +185,24 @@ class Engine:
         return {"on": self.on, "timerLeft": int(self.timer_left()), "beat": self.S["beat"], "base": self.S["base"],
                 "scene": self.S["scene"], "rhythm": self.S["rhythm"], "breath": self.S["breath"],
                 "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
-                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"]}
+                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "clips": self.clip_status(), "clipDir": CLIP_DIR}
+
+    # -------------------------------------------------- analysis (what the visuals listen to)
+    def analyse(self, out):
+        m = (out[:, 0] + out[:, 1]) * 0.5
+        st = self.anst
+        lo, st["lo"] = leaky(m * (1 - .985), .985, st["lo"])          # ~115 Hz one-pole
+        hp, st["hi"] = leaky(m * (1 - .75), .75, st["hi"]); hi = m - hp  # ~2.2 kHz one-pole HP
+        mid = m - lo - hi
+        def e(x): return float(np.sqrt(np.mean(x * x)))
+        a = self.an; k = .35                                             # smoothing across blocks
+        for key, val in (("rms", e(m)), ("lo", e(lo)), ("mid", e(mid)), ("hi", e(hi))):
+            a[key] += (val - a[key]) * (k if val > a[key] else k * .5)   # fast attack, slower release
+
+    def analysis(self):
+        a = self.an
+        bp = (self.ph[1] - self.ph[0]) % (2 * np.pi)                     # actual L/R phase difference = the beat the ear hears
+        return {"a": [round(min(1.0, a["rms"] * 2.2), 3), round(min(1.0, a["lo"] * 4.0), 3), round(min(1.0, a["mid"] * 3.0), 3), round(min(1.0, a["hi"] * 6.0), 3), round(float(bp), 3), 1 if self.on else 0]}
 
     # -------------------------------------------------- synthesis
     def block(self):
@@ -237,11 +322,27 @@ class Engine:
             else: continue
             out[:, 0] += lay; out[:, 1] += lay * .92
 
+        # user clips
+        with self.lock: clips = [c for c in self.clips.values() if c["on"] and c["data"] is not None]
+        for c in clips:
+            data = c["data"]; L = len(data)
+            if L == 0: continue
+            pos = c["pos"]; got = 0
+            while got < n:
+                take = min(n - got, L - pos)
+                out[got:got + take] += data[pos:pos + take] * c["gain"]
+                got += take; pos += take
+                if pos >= L:
+                    if c["loop"]: pos = 0
+                    else: c["on"] = False; pos = 0; break
+            c["pos"] = pos
+
         # master gain with smooth fade (timer and start/stop) + volume
         g = self.master + (target - self.master) * (1 - np.exp(-np.arange(1, n + 1) / (SR * .08)))
         self.master = float(g[-1])
         out *= (g * S["vol"] * 2.0)[:, None]
         out = np.tanh(out * 1.15) * .95      # soft limiter
+        self.analyse(out)
         self.t0 += n
         return out.astype(np.float32)
 
@@ -270,7 +371,8 @@ def main():
         with wave.open(a.out, "wb") as w:
             w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
             w.writeframes((pcm * 32767).astype("<i2").tobytes())
-        print(json.dumps({"ok": True, "seconds": a.seconds, "cpu_seconds": round(cpu, 3),
+        an = eng.analysis()["a"]
+        print(json.dumps({"ok": True, "seconds": a.seconds, "cpu_seconds": round(cpu, 3), "analysis_rms_lo_mid_hi_phase": an[:5],
                           "rms_L": float(np.sqrt((pcm[:, 0] ** 2).mean())), "rms_R": float(np.sqrt((pcm[:, 1] ** 2).mean())),
                           "peak": float(np.abs(pcm).max()), "nan": bool(np.isnan(pcm).any())}))
         return
@@ -288,6 +390,10 @@ def main():
             elif c == "toggle": (eng.stop() if eng.on else eng.play())
             elif c == "set": eng.apply(d)
             elif c == "scene": eng.scene(d.get("name", ""))
+            elif c == "clips": eng.scan_clips()
+            elif c == "clip":
+                if d.get("add"): eng.add_clip(str(d["add"]))
+                elif d.get("name"): eng.set_clip(str(d["name"]), d)
             elif c == "quit": os._exit(0)
             emit(eng.status())
         os._exit(0)
@@ -295,8 +401,9 @@ def main():
     def emit(o):
         with elock: sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
     threading.Thread(target=reader, daemon=True).start()
-    emit({"ready": True, **eng.status()})
-    proc = None; last = 0
+    eng.scan_clips()
+    emit({"ready": True, "clipDir": CLIP_DIR, **eng.status()})
+    proc = None; last = 0; blk = 0
     while True:
         if eng.on or eng.master > 1e-4:
             if proc is None or proc.poll() is not None:
@@ -306,6 +413,8 @@ def main():
             except BrokenPipeError: proc = None
             if eng.hits:
                 a = max(eng.hits); eng.hits = []; emit({"hit": round(a, 2)})
+            blk += 1
+            if blk % 2 == 0: emit(eng.analysis())          # ~23 Hz
         else:
             if proc is not None:
                 try: proc.stdin.close()

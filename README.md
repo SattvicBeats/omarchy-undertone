@@ -27,6 +27,21 @@ card with that command if it's missing. `pw-cat` ships with PipeWire.
 - CLI: `omarchy-shell undertone playpause|play|stop|show|hide|status`,
   `omarchy-shell undertone scene Rest`
 
+## Visuals listen to the sound
+
+The engine measures the mix every 21 ms — loudness, low/mid/high band energy, the real
+left/right phase difference (the beat you actually hear) and the taal hits — and streams
+it to the visuals ~23×/s. Field drift is locked to the beat phase and brightness to
+loudness; Lava's plate heats with bass; Flow's speed follows mid/high energy; hits kick
+Lava and Flow. Silence → still. Clips you add drive them the same way.
+
+## Clips
+
+Drop audio files in `~/.local/share/undertone/clips/` (override with `UNDERTONE_CLIPS`).
+WAV plays natively; mp3/ogg/flac/m4a/opus go through `ffmpeg` if installed. Each clip
+shows in the panel with play/pause, gain and loop. Scripts: `omarchy-shell undertone clip /path/to/file.wav`
+(adds it to the list for this session), `omarchy-shell undertone clips` (JSON).
+
 ## Screensaver
 
 The visual runs fullscreen on every monitor; any key or mouse movement closes it.

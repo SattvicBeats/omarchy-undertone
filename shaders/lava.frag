@@ -7,8 +7,8 @@ layout(std140, binding = 0) uniform buf {
     float qt_Opacity;
     float thr;       // 1 - breath*0.25
     float aspect;
-    float pad0;
-    float pad1;
+    float energy;
+    float hi;
     vec4 colL;
     vec4 colR;
     vec4 colF;
@@ -32,6 +32,7 @@ void main() {
     float a, c, g;
     if (f > u.thr) { a = T; c = 1.0 - T; g = 1.0; } else { a = T * edge; c = (1.0 - T) * edge; g = 0.55 * edge; }
     vec3 B = u.colF.rgb;
-    vec3 col = B + a * (u.colL.rgb - B) * g + c * (u.colR.rgb - B) * g;
+    float loud = 0.55 + 0.45 * u.energy;
+    vec3 col = B + (a * (u.colL.rgb - B) * g + c * (u.colR.rgb - B) * g) * loud + u.hi * 0.15 * edge;
     fragColor = vec4(col, 1.0) * u.qt_Opacity;
 }

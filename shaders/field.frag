@@ -9,6 +9,10 @@ layout(std140, binding = 0) uniform buf {
     float beat;      // Hz
     float base;      // Hz
     float aspect;    // width / height
+    float energy;    // 0..1 loudness
+    float beatPhase; // radians, the real L/R phase difference
+    float lo;
+    float hi;
     vec4 colL;
     vec4 colR;
     vec4 colF;
@@ -19,14 +23,16 @@ void main() {
     float FH = FW / max(0.1, u.aspect);
     float x = qt_TexCoord0.x * FW;
     float y = qt_TexCoord0.y * FH;
-    float drift = u.time * clamp(u.beat / 10.0, 0.3, 2.0);
+    // the field breathes with the beat you actually hear; idles slowly when silent
+    float drift = u.beatPhase + u.time * 0.15;
     float kL = 0.09 * pow(u.base / 196.0, 0.35);
     float kR = kL * (1.0 + u.beat / u.base * 40.0);
     float sx = FW * 0.32, sy = FH * 0.5;
     float r1 = length(vec2(x - sx, y - sy));
     float r2 = length(vec2(x - (FW - sx), y - sy));
     float v = (cos(kL * r1 - drift) + cos(kR * r2 + drift)) * 0.5;
-    float a = max(0.0, v), c = max(0.0, -v), g = 0.15 + 0.85 * abs(v);
+    float loud = 0.25 + 0.75 * u.energy;
+    float a = max(0.0, v) * loud, c = max(0.0, -v) * loud, g = (0.15 + 0.85 * abs(v)) * (0.5 + 0.5 * loud);
     vec3 B = u.colF.rgb;
     vec3 col = B + a * (u.colL.rgb - B) * g + c * (u.colR.rgb - B) * g;
     fragColor = vec4(col, 1.0) * u.qt_Opacity;

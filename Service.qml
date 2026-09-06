@@ -68,9 +68,15 @@ Item {
   readonly property string toggleFlag: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/toggles/screensaver-off"
   readonly property bool saverOpen: saverLoader.active
   signal hit(real amp)
+  property var audio: [0, 0, 0, 0, 0, 0]
+  property var clips: []
+  property string clipDir: ""
 
   function applyStatus(s) {
+    if ("a" in s) { root.audio = s.a; return }
     if ("hit" in s) { root.hit(Number(s.hit) || 0); return }
+    if ("clips" in s) root.clips = s.clips || []
+    if ("clipDir" in s) root.clipDir = String(s.clipDir)
     if (s.error) { console.warn("groundcontrol engine:", s.error); root.setupMessage = String(s.error); root.setupNeeded = true; return }
     if (s.ready === true) { root.ready = true; root.setupNeeded = false }
     if ("on" in s) root.playing = s.on === true
@@ -125,6 +131,9 @@ Item {
   function togglePlay() { send({ cmd: "toggle" }) }
   function set(o) { o.cmd = "set"; send(o) }
   function setScene(name) { send({ cmd: "scene", name: String(name) }) }
+  function rescanClips() { send({ cmd: "clips" }) }
+  function setClip(name, o) { o.cmd = "clip"; o.name = name; send(o) }
+  function addClip(path) { send({ cmd: "clip", add: String(path) }) }
   function retrySetup() { root.setupNeeded = false; root.setupMessage = ""; engine.running = true }
 
   function toggleWindow() { if (win.visible) hideWindow(); else showWindow() }
@@ -144,7 +153,9 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.3.9", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.4.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function clip(path: string): void { root.addClip(path) }
+    function clips(): string { return JSON.stringify(root.clips) }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2 }
     function status(): string {
@@ -246,6 +257,7 @@ Item {
           beat: root.beat; base: root.base
           colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
+            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio) } }
           bufferWidth: 320
           fps: 30
         }
@@ -329,6 +341,7 @@ Item {
             beat: root.beat; base: root.base
             colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
+            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio) } }
             running: win.visible && !root.saverOpen
           }
           Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }
@@ -514,6 +527,32 @@ Item {
               }
             }
           }
+        }
+
+        // clips
+        PanelSectionHeader { text: "Clips" }
+        Text {
+          Layout.fillWidth: true; wrapMode: Text.Wrap
+          text: "Drop audio files in " + root.clipDir + " (WAV plays natively; other formats need ffmpeg). They mix into the same bus, so they drive the visuals too."
+          color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+        }
+        Repeater {
+          model: root.clips
+          delegate: RowLayout {
+            required property var modelData
+            Layout.fillWidth: true; spacing: Style.space(8)
+            Button { text: modelData.on ? "▮▮ " + modelData.name : "▶ " + modelData.name; selected: modelData.on; tooltipText: modelData.err ? modelData.err : (modelData.seconds ? modelData.seconds + " s" : "");
+                     onClicked: root.setClip(modelData.name, { on: !modelData.on }) }
+            Text { visible: !!modelData.err; text: modelData.err || ""; color: Color.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; Layout.fillWidth: true; elide: Text.ElideRight }
+            Item { visible: !modelData.err; Layout.fillWidth: true }
+            PanelSlider { Layout.preferredWidth: 140; minimum: 0; maximum: 1.5; step: 0.05; value: modelData.gain; onReleased: function(v) { root.setClip(modelData.name, { gain: v }) } }
+            Button { text: modelData.loop ? "loop" : "once"; selected: modelData.loop; onClicked: root.setClip(modelData.name, { loop: !modelData.loop }) }
+          }
+        }
+        RowLayout {
+          spacing: Style.space(8)
+          Button { text: "Rescan folder"; onClicked: root.rescanClips() }
+          Button { text: "Open folder"; onClicked: Qt.openUrlExternally("file://" + root.clipDir) }
         }
 
         // sleep timer

@@ -24,6 +24,14 @@ Item {
   property bool gpu: true              // field + lava as fragment shaders at native resolution
   readonly property bool useGpu: gpu && model !== 2
   property real shaderTime: 0
+  // live analysis from the engine (Service pushes these ~23x/s)
+  property real energy: 0
+  property real lo: 0
+  property real mid: 0
+  property real hi: 0
+  property real beatPhase: 0
+  property bool audioOn: false
+  function setAudio(a) { energy = a[0]; lo = a[1]; mid = a[2]; hi = a[3]; beatPhase = a[4]; audioOn = a[5] === 1; V.setAudio(a[0], a[1], a[2], a[3], a[4], a[5]) }
   property var probe: null
   property var readback: null
 
@@ -50,6 +58,10 @@ Item {
     property real beat: host.beat
     property real base: host.base
     property real aspect: width / Math.max(1, height)
+    property real energy: host.energy
+    property real beatPhase: host.beatPhase
+    property real lo: host.lo
+    property real hi: host.hi
     property color colL: host.colL
     property color colR: host.colR
     property color colF: host.colF
@@ -62,8 +74,8 @@ Item {
     visible: host.useGpu && host.model === 1
     property real thr: 1.0 - (host.breathLevel === null || host.breathLevel === undefined ? 0 : Number(host.breathLevel) * 0.25)
     property real aspect: width / Math.max(1, height)
-    property real pad0: 0
-    property real pad1: 0
+    property real energy: host.energy
+    property real hi: host.hi
     property color colL: host.colL
     property color colR: host.colR
     property color colF: host.colF
