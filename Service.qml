@@ -202,7 +202,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.7.2", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.7.3", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -358,6 +358,7 @@ Item {
       anchors.fill: parent
       anchors.margins: Style.space(18)
       anchors.rightMargin: Style.space(30)
+      anchors.bottomMargin: Style.space(64)
       contentWidth: width
       contentHeight: col.implicitHeight
       clip: true
@@ -374,8 +375,7 @@ Item {
         RowLayout {
           Layout.fillWidth: true
           spacing: Style.space(10)
-          Text { text: "Undertone"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body * 1.6; font.bold: true }
-          Item { Layout.fillWidth: true }
+          Text { text: "Undertone"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body * 1.6; font.bold: true; Layout.fillWidth: true; elide: Text.ElideRight; Layout.minimumWidth: 60 }
           Text {
             visible: root.playing && root.timerLeft > 0
             text: Math.floor(root.timerLeft / 60) + ":" + (root.timerLeft % 60 < 10 ? "0" : "") + (root.timerLeft % 60)
@@ -707,10 +707,32 @@ Item {
         }
       }
     }
+    // transport: bottom-left, outside the scroll area, never clipped by resize
+    Rectangle {
+      id: transport
+      anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+      height: Style.space(56)
+      color: Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.96)
+      Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+      RowLayout {
+        anchors.fill: parent; anchors.leftMargin: Style.space(14); anchors.rightMargin: Style.space(14); spacing: Style.space(8)
+        Button { text: root.playing ? "❚❚  Pause" : "▶  Play"; selected: root.playing; tooltipText: "Space"; onClicked: root.togglePlay() }
+        Button { text: "■  Stop"; onClicked: root.stop() }
+        Text {
+          Layout.fillWidth: true; elide: Text.ElideRight
+          text: (root.scene ? root.scene + "  ·  " : "") + "L " + root.base.toFixed(1) + "  R " + (root.base + root.beat).toFixed(1) + "  beat " + root.beat.toFixed(2) + " Hz" + (root.playing && root.timerLeft > 0 ? "  ·  " + Math.floor(root.timerLeft / 60) + ":" + (root.timerLeft % 60 < 10 ? "0" : "") + (root.timerLeft % 60) : "")
+          color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+        }
+        Button { text: "Screensaver"; onClicked: root.openSaver() }
+      }
+    }
+    // Space toggles play when the panel has focus
+    Item { anchors.fill: parent; focus: true; Keys.onSpacePressed: function(e) { root.togglePlay(); e.accepted = true } }
+
     // vertical scrollbar: track on the right, thumb sized to the visible fraction, draggable
     Rectangle {
       id: sbTrack
-      anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+      anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: transport.top
       anchors.margins: Style.space(8); anchors.rightMargin: Style.space(10)
       width: Style.space(8); radius: width / 2
       color: Qt.rgba(1, 1, 1, 0.06); visible: flick.contentHeight > flick.height
