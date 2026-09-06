@@ -22,7 +22,7 @@ Item {
   property bool ctxOk: false
   property string painter: "bmp"       // JS path for Flow / fallback: "bmp" (Image from data URL) | "rects" (Canvas fillRect)
   property bool gpu: true              // field + lava as fragment shaders at native resolution
-  readonly property bool useGpu: gpu && (model === 0 || model === 1 || model === 4)
+  readonly property bool useGpu: gpu && (model === 0 || model === 1 || model === 4 || model === 5 || model === 8)
   // Chladni plate from the engine: eigenmode LUT (texture) + streamed per-mode amplitudes
   property var plateN: []
   property int plateCount: 0
@@ -42,6 +42,10 @@ Item {
   property real beatPhase: 0         // integral of the measured (fR - fL) — the beat as heard
   property bool audioOn: false
   property var bands: []             // 32 log-spaced spectrum bands, 0..100
+  property var wave: []              // 256-pt L+R envelope over 171 ms (int8)
+  property var wx: []                // 128 raw L samples (int8)
+  property var wy: []                // 128 raw R samples (int8)
+  function setWave(w, x, y) { if (w) wave = w; if (x) wx = x; if (y) wy = y; if (model === 6 || model === 7) scopeCv.requestPaint() }
   property real lastAudioMs: 0
   function setAudio(a, s) {
     var now = Date.now(); var dt = lastAudioMs ? Math.min(0.2, (now - lastAudioMs) / 1000) : 0; lastAudioMs = now
@@ -124,6 +128,81 @@ Item {
   readonly property bool lutReady: lutLoader.item !== null && lutLoader.item.status === Image.Ready
   // while the plate is not solved yet (first ~3 s), show the plain plate
   Rectangle { anchors.centerIn: parent; width: Math.min(parent.width, parent.height) * 0.995; height: width; radius: width / 2; visible: host.useGpu && host.model === 4 && !host.lutReady; color: Qt.lighter(host.colF, 1.35); border.width: 2; border.color: Qt.rgba(host.colL.r, host.colL.g, host.colL.b, 0.25) }
+  function s4(i) { var b = host.bands; return Qt.vector4d((b[i] || 0) / 100, (b[i + 1] || 0) / 100, (b[i + 2] || 0) / 100, (b[i + 3] || 0) / 100) }
+  ShaderEffect {
+    id: mandalaFx
+    anchors.fill: parent
+    visible: host.useGpu && host.model === 5
+    property real time: host.shaderTime
+    property real aspect: width / Math.max(1, height)
+    property real energy: host.energy
+    property real beatPhase: host.beatPhase
+    property real hit: host.hitLevel
+    property real lo: host.lo
+    property real hi: host.hi
+    property real pad0: 0
+    property color colL: host.colL
+    property color colR: host.colR
+    property color colF: host.colF
+    property vector4d s0: host.s4(0); property vector4d s1: host.s4(4); property vector4d s2: host.s4(8); property vector4d s3: host.s4(12)
+    property vector4d s4: host.s4(16); property vector4d s5: host.s4(20); property vector4d s6: host.s4(24); property vector4d s7: host.s4(28)
+    fragmentShader: Qt.resolvedUrl("shaders/mandala.frag.qsb")
+    onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "mandala shader: " + log; host.gpu = false }
+  }
+  ShaderEffect {
+    id: tunnelFx
+    anchors.fill: parent
+    visible: host.useGpu && host.model === 8
+    property real time: host.shaderTime
+    property real aspect: width / Math.max(1, height)
+    property real energy: host.energy
+    property real beatPhase: host.beatPhase
+    property real hit: host.hitLevel
+    property real lo: host.lo
+    property real hi: host.hi
+    property real mid: host.mid
+    property color colL: host.colL
+    property color colR: host.colR
+    property color colF: host.colF
+    property vector4d s0: host.s4(0); property vector4d s1: host.s4(4); property vector4d s2: host.s4(8); property vector4d s3: host.s4(12)
+    property vector4d s4: host.s4(16); property vector4d s5: host.s4(20); property vector4d s6: host.s4(24); property vector4d s7: host.s4(28)
+    fragmentShader: Qt.resolvedUrl("shaders/tunnel.frag.qsb")
+    onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "tunnel shader: " + log; host.gpu = false }
+  }
+  // models 6/7: Lissajous (L vs R — rotates at the beat) and Scope (L+R interference envelope). Cheap Canvas line work.
+  Canvas {
+    id: scopeCv
+    anchors.fill: parent
+    visible: host.model === 6 || host.model === 7
+    property var trail: []
+    onPaint: {
+      var ctx = getContext("2d"); ctx.reset(); ctx.clearRect(0, 0, width, height)
+      ctx.lineJoin = "round"; ctx.lineCap = "round"
+      if (host.model === 7) {
+        var w = host.wave; if (!w || w.length < 2) return
+        ctx.lineWidth = Math.max(1.5, height * 0.004); ctx.strokeStyle = host.colL; ctx.globalAlpha = 0.9
+        ctx.beginPath()
+        for (var i = 0; i < w.length; i++) { var px = i / (w.length - 1) * width, py = height / 2 - (w[i] / 127) * height * 0.42; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py) }
+        ctx.stroke()
+        // envelope (the beat): running max of |w| over a short window
+        ctx.strokeStyle = host.colR; ctx.globalAlpha = 0.5; ctx.beginPath()
+        var win = 6
+        for (var j = 0; j < w.length; j++) { var m = 0; for (var k = Math.max(0, j - win); k <= Math.min(w.length - 1, j + win); k++) m = Math.max(m, Math.abs(w[k])); var ex = j / (w.length - 1) * width, ey = height / 2 - (m / 127) * height * 0.42; if (j === 0) ctx.moveTo(ex, ey); else ctx.lineTo(ex, ey) }
+        ctx.stroke()
+      } else {
+        var xs = host.wx, ys = host.wy; if (!xs || xs.length < 2) return
+        var cx = width / 2, cy = height / 2, sc = Math.min(width, height) * 0.42
+        var t = trail; t.push([xs, ys]); if (t.length > 6) t.shift(); trail = t
+        for (var q = 0; q < t.length; q++) {
+          ctx.globalAlpha = 0.15 + 0.85 * (q + 1) / t.length; ctx.lineWidth = Math.max(1.2, sc * 0.008)
+          ctx.strokeStyle = q === t.length - 1 ? host.colL : host.colR; ctx.beginPath()
+          var X = t[q][0], Y = t[q][1]
+          for (var n = 0; n < X.length; n++) { var lx = cx + X[n] / 127 * sc, ly = cy - Y[n] / 127 * sc; if (n === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly) }
+          ctx.stroke()
+        }
+      }
+    }
+  }
   ShaderEffect {
     id: cymFx
     anchors.fill: parent
@@ -213,7 +292,7 @@ Item {
 
   Image {
     id: im
-    visible: !host.useGpu && host.painter === "bmp" && host.model !== 3
+    visible: !host.useGpu && host.painter === "bmp" && host.model !== 3 && host.model !== 6 && host.model !== 7
     anchors.fill: parent
     smooth: true
     mipmap: false
@@ -235,7 +314,7 @@ Item {
 
   Canvas {
     id: cv
-    visible: !host.useGpu && host.painter !== "bmp" && host.model !== 3
+    visible: !host.useGpu && host.painter !== "bmp" && host.model !== 3 && host.model !== 6 && host.model !== 7
     width: host.bw
     height: host.bh
     smooth: true
@@ -275,7 +354,7 @@ Item {
     onTriggered: {
       var now = Date.now(); var dt = cv.lastMs ? Math.min(0.1, (now - cv.lastMs) / 1000) : 1 / host.fps; cv.lastMs = now
       cv.t += dt; host.ticks++
-      if (host.model === 3) return
+      if (host.model === 3 || host.model === 6 || host.model === 7) return
       if (host.useGpu) host.gpuFrame(dt); else if (host.painter === "bmp") host.paintBmp(); else cv.requestPaint()
     }
   }

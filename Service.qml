@@ -72,12 +72,13 @@ Item {
   property var spectrum: []
   property var plateMsg: null           // the solved plate (eigenmode LUT + n list), arrives once from the engine
   property var modeAmps: []
+  property var wave: [[], [], []]
   property var clips: []
   property string clipDir: ""
 
   function applyStatus(s) {
     if ("plate" in s) { root.plateMsg = s.plate; return }
-    if ("a" in s) { if ("s" in s) root.spectrum = s.s; if ("p" in s) root.modeAmps = s.p; root.audio = s.a; return }
+    if ("a" in s) { if ("s" in s) root.spectrum = s.s; if ("p" in s) root.modeAmps = s.p; if ("w" in s) root.wave = [s.w, s.x, s.y]; root.audio = s.a; return }
     if ("hit" in s) { root.hit(Number(s.hit) || 0); return }
     if ("clips" in s) root.clips = s.clips || []
     if ("clipDir" in s) root.clipDir = String(s.clipDir)
@@ -173,7 +174,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.5.5", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -185,7 +186,7 @@ Item {
       return JSON.stringify({ modes: root.plateMsg.count, earTones: [root.audio[4], root.audio[5]], top: out })
     }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
-    function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3; else if (k === "cymatics") root.visModel = 4 }
+    function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3; else if (k === "cymatics") root.visModel = 4; else if (k === "mandala") root.visModel = 5; else if (k === "lissajous") root.visModel = 6; else if (k === "scope") root.visModel = 7; else if (k === "tunnel") root.visModel = 8 }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
@@ -198,7 +199,7 @@ Item {
     return null
   }
   property real breathT: 0
-  Timer { interval: 50; repeat: true; running: win.visible && root.playing && root.breathPhases !== null; onTriggered: root.breathT += 0.05 }
+  Timer { interval: 50; repeat: true; running: (win.visible || root.saverOpen) && root.playing && root.breathPhases !== null; onTriggered: root.breathT += 0.05 }
   // 0..1 ring size: rises on inhale, holds, falls on exhale, holds
   readonly property real breathLevel: {
     var p = breathPhases; if (!p) return 0.5
@@ -207,6 +208,11 @@ Item {
     t -= p[0]; if (t < p[1]) return 1
     t -= p[1]; if (t < p[2]) return 1 - t / p[2]
     return 0
+  }
+  readonly property real breathSecondsLeft: {
+    var p = breathPhases; if (!p) return 0
+    var total = p[0] + p[1] + p[2] + p[3]; var t = breathT % total
+    if (t < p[0]) return p[0] - t; t -= p[0]; if (t < p[1]) return p[1] - t; t -= p[1]; if (t < p[2]) return p[2] - t; t -= p[2]; return p[3] - t
   }
   readonly property string breathWord: {
     var p = breathPhases; if (!p) return ""
@@ -285,12 +291,14 @@ Item {
           beat: root.beat; base: root.base
           colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
+            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps); saverVisual.setWave(root.wave[0], root.wave[1], root.wave[2]) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
             Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
           bufferWidth: 320
           fps: 30
         }
         Connections { target: root; function onHit(amp) { saverVisual.pulse(amp) } }
+        BreathFlower { visible: root.breathPhases !== null && root.playing; anchors.centerIn: parent; width: Math.min(parent.width, parent.height) * 0.42; height: width
+                       level: root.breathLevel; word: root.breathWord; secondsLeft: root.breathSecondsLeft; petal: root.pal.R; petal2: root.pal.L; ink: root.pal.I || Color.foreground }
         Timer { interval: 500; repeat: true; running: true; onTriggered: root.saverDiag = saverVisual.diag() }
 
         // the 640-ms grace stops the click/keypress that opened it from closing it
@@ -370,16 +378,18 @@ Item {
             beat: root.beat; base: root.base
             colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
+            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps); panelVisual.setWave(root.wave[0], root.wave[1], root.wave[2]) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
           Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
             running: win.visible && !root.saverOpen
           }
           Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }
+          BreathFlower { visible: root.breathPhases !== null; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: Style.space(8); width: parent.height * 0.5; height: width; compact: true
+                         level: root.breathLevel; word: root.breathWord; secondsLeft: root.breathSecondsLeft; petal: root.pal.R; petal2: root.pal.L; ink: root.pal.I || Color.foreground }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: ["Field", "Lava", "Flow", "Spectrum", "Cymatics"]
+            model: ["Field", "Lava", "Flow", "Spectrum", "Cymatics", "Mandala", "Lissajous", "Scope", "Tunnel"]
             delegate: Button { required property var modelData; required property int index; text: modelData; selected: root.visModel === index; onClicked: root.visModel = index }
           }
           Item { Layout.fillWidth: true }
@@ -525,16 +535,7 @@ Item {
         PanelSectionHeader { text: "Breath pacer" }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(12)
-          Item {
-            Layout.preferredWidth: 72; Layout.preferredHeight: 72
-            Rectangle {
-              anchors.centerIn: parent
-              width: 24 + 44 * root.breathLevel; height: width; radius: width / 2
-              color: "transparent"; border.width: 2; border.color: root.breathPhases ? Color.accent : Color.muted
-              Behavior on width { NumberAnimation { duration: 60 } }
-            }
-            Text { anchors.centerIn: parent; text: root.breathWord; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-          }
+          BreathFlower { Layout.preferredWidth: 120; Layout.preferredHeight: 120; level: root.breathPhases ? root.breathLevel : 0.15; word: root.breathWord; secondsLeft: root.breathSecondsLeft; petal: root.pal.R; petal2: root.pal.L; ink: Color.foreground }
           Flow {
             Layout.fillWidth: true; spacing: Style.space(6)
             Repeater {

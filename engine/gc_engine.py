@@ -271,12 +271,20 @@ class Engine:
             amp = amp / (amp.max() + 1e-9) * min(1.0, self.an["rms"] * 3.0)
             self.mode_amp += (amp - self.mode_amp) * np.where(amp > self.mode_amp, .45, .12)
 
+    def waveform(self):
+        r = self.ring
+        env = (r[::32, 0] + r[::32, 1]) * 0.5                                   # 256 points over the last 171 ms: the beat envelope
+        xy = r[-128:]                                                            # 128 raw stereo samples: Lissajous L vs R
+        q = lambda v: [int(x) for x in np.clip(np.round(v * 127.0 / max(0.05, float(np.abs(r).max()))), -127, 127)]
+        return {"w": q(env), "x": q(xy[:, 0]), "y": q(xy[:, 1])}
+
     def analysis(self):
         a = self.an
         return {"a": [round(min(1.0, a["rms"] * 2.2), 3), round(min(1.0, a["lo"] * 4.0), 3), round(min(1.0, a["mid"] * 3.0), 3), round(min(1.0, a["hi"] * 6.0), 3),
                       round(self.peaks[0], 2), round(self.peaks[1], 2), 1 if self.on else 0],
                 "s": [int(v * 100) for v in self.bands],
-                "p": [int(v * 100) for v in self.mode_amp] if self.mode_amp is not None else []}
+                "p": [int(v * 100) for v in self.mode_amp] if self.mode_amp is not None else [],
+                **self.waveform()}
 
     # -------------------------------------------------- synthesis
     def block(self):

@@ -38,6 +38,10 @@ a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the
 - **Lava** — plate heat from bass energy, brightness from loudness, hits shove the blobs
 - **Flow** — particle speed from mid/high energy, hits accelerate
 - **Spectrum** — 32 bars with peak hold, left-tone colour low, right-tone colour high
+- **Mandala** — the 32 measured bands folded into 6–12-fold radial symmetry (petal count from bass), rotating at the measured beat
+- **Lissajous** — left ear vs right ear, raw samples: for a binaural pair the figure rotates at exactly the beat frequency — the beat made visible (best in *Pure pair*)
+- **Scope** — Black Dawn's "waveform interference · time domain": the L+R sum over 171 ms with its envelope, pulsing at the beat
+- **Tunnel** — MilkDrop-style tunnel; depth scrolls at the beat, rings lit by the spectrum (bass near, treble far)
 - **Cymatics** (default) — a real Chladni plate. `engine/plate.py` solves the free-edge circular
   plate equation (Bessel J/I by quadrature, free-edge boundary determinant, eigenvalues match
   Leissa's table to 3 digits; lowest mode (2,0) tuned to 40 Hz; 43 modes to ~2.9 kHz, cached in
@@ -49,6 +53,12 @@ a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the
 
 Silence → still. Clips you add drive them exactly the same way, because they are measured
 from the same output.
+
+## Breath pacer
+
+A six-petal flower (Apple-Breathe style) that opens on the inhale, holds, and closes on the exhale,
+with the phase word and seconds left. It sits in the corner of the panel visual and in the centre of
+the screensaver whenever a pacer is selected and audio is playing.
 
 ## Clips
 
