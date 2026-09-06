@@ -93,7 +93,7 @@ def prepare_om(path, target_f0):
     n2 = int(len(mono) / ratio)
     x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
     x = x / (np.abs(x).max() + 1e-6)
-    if len(x) < 6.5 * SR: x = sustain_om(x)                    # short TTS takes: hold the vowel and the hum ourselves
+    if len(x) < 6.5 * SR: x = sustain_om(x, f0=target_f0)      # short TTS takes: hold the vowel and the hum ourselves
     return x, f0, None
 
 def _brightness(seg):
@@ -111,8 +111,9 @@ def _loop_extend(grain, seconds, fade=0.12):
         out[pos:pos + n] += g; pos += n - nf
     return out[:int(seconds * SR)]
 
-def sustain_om(x, o_sec=4.2, m_sec=3.2):
-    """Turn a short 'Aum'/'Om' take into a held one: attack + sustained 'o' + sustained 'm' + natural tail."""
+def sustain_om(x, o_sec=4.2, m_sec=3.2, f0=None):
+    """Turn a short 'Aum'/'Om' take into a held one: attack + sustained 'o' + sustained 'm' + natural tail.
+    The o/m boundary is the brightness transition; each grain is the steadiest window inside its own region."""
     n = len(x); env = np.abs(x)
     win = int(0.05 * SR); e = np.convolve(env, np.ones(win) / win, mode="same")
     thr = e.max() * 0.15
@@ -120,24 +121,43 @@ def sustain_om(x, o_sec=4.2, m_sec=3.2):
     if len(on) < SR // 2: return x
     a, b = int(on[0]), int(on[-1]); voiced = b - a
     if voiced < 0.6 * SR: return x
-    # brightness profile over the voiced part: the 'o' is the brightest third, the 'm' the darkest third near the end
-    hop = int(0.05 * SR); cents = []
-    for i in range(a, b - int(0.2 * SR), hop): cents.append((i, _brightness(x[i:i + int(0.2 * SR)])))
+    solid = np.where(e > e.max() * 0.45)[0]; b_solid = int(solid[-1]) if len(solid) else b   # before the fade-out
+    hop = int(0.05 * SR); w = int(0.2 * SR)
+    cents = [(i, _brightness(x[i:i + w])) for i in range(a, b_solid - w, hop)]
     if len(cents) < 4: return x
     idx, br = zip(*cents); br = np.array(br); idx = np.array(idx)
-    first = br[: max(2, len(br) // 2)]; o_at = int(idx[int(np.argmax(first))])
-    last = br[len(br) // 2:]; m_at = int(idx[len(br) // 2 + int(np.argmin(last))])
-    m_at = max(m_at, o_at + int(0.3 * SR))
-    gl = int(0.45 * SR)
-    o_grain = x[o_at: o_at + gl]; m_grain = x[min(m_at, n - gl): min(m_at, n - gl) + gl]
-    if len(o_grain) < gl or len(m_grain) < gl: return x
+    mid = 0.5 * (br.max() + br.min())
+    dark = np.where(br < mid)[0]
+    m_start = int(idx[dark[0]]) if len(dark) and dark[0] > 0 else int(idx[len(idx) * 2 // 3])   # first dark window = o→m
+    o_lo, o_hi = a, m_start; m_lo, m_hi = m_start, b_solid
+    period = SR / f0 if f0 and f0 > 30 else None
+    def grain_len(region):
+        gl = int(min(0.8 * SR, region / 1.2))
+        if period: gl = int(max(4, round(gl / period)) * period)
+        return gl
+    gl_o, gl_m = grain_len(o_hi - o_lo), grain_len(m_hi - m_lo)
+    if gl_o < 0.12 * SR or gl_m < 0.12 * SR: return x
+    w2 = 960; xp = np.pad(x, w2, mode="reflect")
+    rms_all = np.sqrt(np.convolve(xp * xp, np.ones(w2) / w2, mode="same"))[w2:-w2] + 1e-4
+    lvl = float(np.median(rms_all[a:b_solid])); xf = np.where(rms_all > 0.15 * lvl, x / rms_all * lvl, x).astype(np.float32)
+    def flattest(lo, hi, gl):
+        best, bpos = None, lo
+        for pos in range(lo, max(lo + 1, hi - gl + 1), int(0.02 * SR)):
+            seg = xf[pos:pos + gl]
+            if len(seg) < gl: break
+            rms = np.sqrt(np.convolve(seg * seg, np.ones(2400) / 2400, mode="valid"))
+            v = float(rms.std() / (rms.mean() + 1e-9))
+            if best is None or v < best: best, bpos = v, pos
+        return min(bpos, n - gl)
+    o_at = flattest(o_lo, o_hi, gl_o); m_at = flattest(m_lo, m_hi, gl_m)
+    o_grain = xf[o_at: o_at + gl_o]; m_grain = xf[m_at: m_at + gl_m]
     attack = x[max(0, a - int(0.05 * SR)): o_at]
-    tail = x[m_at + gl: b + int(0.15 * SR)]
-    o_hold = _loop_extend(o_grain, o_sec); m_hold = _loop_extend(m_grain, m_sec)
-    # crossfade o → m over 0.4 s
-    xf = int(0.4 * SR); r = np.linspace(0, 1, xf, dtype=np.float32)
-    o_hold[-xf:] *= (1 - r); m_hold[:xf] *= r
-    joined = np.concatenate([attack, o_hold[:-xf], o_hold[-xf:] + m_hold[:xf], m_hold[xf:], tail]).astype(np.float32)
+    tail = x[m_at + gl_m: b + int(0.15 * SR)]
+    fade = (period * 6 / SR) if period else 0.12
+    o_hold = _loop_extend(o_grain, o_sec, fade); m_hold = _loop_extend(m_grain, m_sec, fade)
+    xfn = int(0.4 * SR); r = np.linspace(0, 1, xfn, dtype=np.float32)
+    o_hold[-xfn:] *= (1 - r); m_hold[:xfn] *= r
+    joined = np.concatenate([attack, o_hold[:-xfn], o_hold[-xfn:] + m_hold[:xfn], m_hold[xfn:], tail]).astype(np.float32)
     fo = int(0.3 * SR); joined[-fo:] *= np.linspace(1, 0, fo, dtype=np.float32)
     return joined / (np.abs(joined).max() + 1e-6)
 

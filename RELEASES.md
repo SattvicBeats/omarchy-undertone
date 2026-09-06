@@ -13,6 +13,7 @@
 Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visible, panel open).
 | 0.6.4 | v0.6.4 | (see bundle) | Om from user samples (pitch-matched, looped), synth fallback; source readout | service ✓ · continuity ✓ · sample pitch ✓ |
 | 0.6.5 | v0.6.5 | (see bundle) | short TTS takes sustained by granular loop (o + m detected by brightness), tail kept | service ✓ · continuity ✓ · sustain test ✓ |
+| 0.6.6 | v0.6.6 | (see bundle) | Om sustain: phase-coherent grains (whole pitch periods), brightness-transition o/m split, steadiest-window grain choice, level flattening — throb removed (ripple 5 %/2.5 %) | service ✓ · continuity ✓ · sustain ripple ✓ |
 
 ## Rollback
     undertone-release list
