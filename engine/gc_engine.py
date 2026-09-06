@@ -93,7 +93,53 @@ def prepare_om(path, target_f0):
     n2 = int(len(mono) / ratio)
     x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
     x = x / (np.abs(x).max() + 1e-6)
+    if len(x) < 6.5 * SR: x = sustain_om(x)                    # short TTS takes: hold the vowel and the hum ourselves
     return x, f0, None
+
+def _brightness(seg):
+    """Spectral centroid of a segment: the open 'o' is bright, the closed 'm' is dark."""
+    X = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); f = np.fft.rfftfreq(len(seg), 1 / SR)
+    return float((X * f).sum() / (X.sum() + 1e-9))
+
+def _loop_extend(grain, seconds, fade=0.12):
+    """Repeat a grain with equal-power crossfades until `seconds` long (granular sustain)."""
+    n = len(grain); nf = int(fade * SR); out = np.zeros(int(seconds * SR) + n, np.float32); pos = 0
+    ramp = np.linspace(0, 1, nf, dtype=np.float32)
+    while pos < int(seconds * SR):
+        g = grain.copy()
+        if pos > 0: g[:nf] *= ramp; out[pos:pos + nf] *= (1 - ramp)
+        out[pos:pos + n] += g; pos += n - nf
+    return out[:int(seconds * SR)]
+
+def sustain_om(x, o_sec=4.2, m_sec=3.2):
+    """Turn a short 'Aum'/'Om' take into a held one: attack + sustained 'o' + sustained 'm' + natural tail."""
+    n = len(x); env = np.abs(x)
+    win = int(0.05 * SR); e = np.convolve(env, np.ones(win) / win, mode="same")
+    thr = e.max() * 0.15
+    on = np.where(e > thr)[0]
+    if len(on) < SR // 2: return x
+    a, b = int(on[0]), int(on[-1]); voiced = b - a
+    if voiced < 0.6 * SR: return x
+    # brightness profile over the voiced part: the 'o' is the brightest third, the 'm' the darkest third near the end
+    hop = int(0.05 * SR); cents = []
+    for i in range(a, b - int(0.2 * SR), hop): cents.append((i, _brightness(x[i:i + int(0.2 * SR)])))
+    if len(cents) < 4: return x
+    idx, br = zip(*cents); br = np.array(br); idx = np.array(idx)
+    first = br[: max(2, len(br) // 2)]; o_at = int(idx[int(np.argmax(first))])
+    last = br[len(br) // 2:]; m_at = int(idx[len(br) // 2 + int(np.argmin(last))])
+    m_at = max(m_at, o_at + int(0.3 * SR))
+    gl = int(0.45 * SR)
+    o_grain = x[o_at: o_at + gl]; m_grain = x[min(m_at, n - gl): min(m_at, n - gl) + gl]
+    if len(o_grain) < gl or len(m_grain) < gl: return x
+    attack = x[max(0, a - int(0.05 * SR)): o_at]
+    tail = x[m_at + gl: b + int(0.15 * SR)]
+    o_hold = _loop_extend(o_grain, o_sec); m_hold = _loop_extend(m_grain, m_sec)
+    # crossfade o → m over 0.4 s
+    xf = int(0.4 * SR); r = np.linspace(0, 1, xf, dtype=np.float32)
+    o_hold[-xf:] *= (1 - r); m_hold[:xf] *= r
+    joined = np.concatenate([attack, o_hold[:-xf], o_hold[-xf:] + m_hold[:xf], m_hold[xf:], tail]).astype(np.float32)
+    fo = int(0.3 * SR); joined[-fo:] *= np.linspace(1, 0, fo, dtype=np.float32)
+    return joined / (np.abs(joined).max() + 1e-6)
 
 def load_clip(path):
     """Return float32 (n,2) at SR. WAV via stdlib; anything else via ffmpeg if present."""

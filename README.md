@@ -59,7 +59,9 @@ from the same output.
 Your own sung Om: put `om_male.*` and `om_female.*` (wav; mp3/flac with ffmpeg) in
 `~/.local/share/undertone/om/` — one clean cycle each, breath included. The engine detects the
 sample's fundamental, resamples it onto the Sa octave (male 90–150 Hz, female 200–330 Hz) and
-loops it with a soft seam. Without a file, a synthesised Om (no sample): a voice source on the same Sa as the tanpura — male (90–150 Hz
+loops it with a soft seam. Short takes (TTS models rarely hold a note past ~3 s) are
+extended: the engine finds the open vowel and the closed hum by spectral brightness and sustains
+each with crossfaded grains — about 4 s of o, 3 s of m, then the take's own tail. Without a file, a synthesised Om (no sample): a voice source on the same Sa as the tanpura — male (90–150 Hz
 octave) or female (200–330 Hz) — shaped by vowel formants morphing o → m over eight seconds, vibrato,
 a breath pause, ten-second cycle. Panel → Om → Male/Female + level; `omarchy-shell undertone set om female`.
 Scenes: **Om**, **Beach**, **Ocean waves** added; Surf now breaks with a foam hiss at each crest.

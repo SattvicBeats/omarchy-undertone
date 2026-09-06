@@ -12,6 +12,7 @@
 
 Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visible, panel open).
 | 0.6.4 | v0.6.4 | (see bundle) | Om from user samples (pitch-matched, looped), synth fallback; source readout | service ✓ · continuity ✓ · sample pitch ✓ |
+| 0.6.5 | v0.6.5 | (see bundle) | short TTS takes sustained by granular loop (o + m detected by brightness), tail kept | service ✓ · continuity ✓ · sustain test ✓ |
 
 ## Rollback
     undertone-release list
