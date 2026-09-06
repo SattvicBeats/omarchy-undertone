@@ -61,6 +61,39 @@ VOICES = {k: voice(k) for k in ("thump", "dha", "tin", "na")}
 
 CLIP_DIR = os.environ.get("UNDERTONE_CLIPS") or os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"), "undertone", "clips")
 CLIP_EXT = (".wav", ".flac", ".mp3", ".ogg", ".opus", ".m4a", ".aiff", ".aif")
+OM_DIR = os.environ.get("UNDERTONE_OM") or os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"), "undertone", "om")
+
+def find_om_sample(voice):
+    """om_<voice>.<ext> in OM_DIR (or the clips dir as a fallback)."""
+    for d in (OM_DIR, CLIP_DIR):
+        if not os.path.isdir(d): continue
+        for f in sorted(os.listdir(d)):
+            if f.lower().startswith("om_" + voice) and f.lower().endswith(CLIP_EXT): return os.path.join(d, f)
+    return None
+
+def dominant_f0(x, sr=SR):
+    """Fundamental of a sung vowel: strongest peak below 600 Hz of the middle 2 s, then fold to the lowest strong harmonic."""
+    mid = x[len(x) // 2 - sr: len(x) // 2 + sr] if len(x) > 2 * sr else x
+    X = np.abs(np.fft.rfft(mid * np.hanning(len(mid)))); f = np.fft.rfftfreq(len(mid), 1 / sr)
+    band = (f > 60) & (f < 600); k = np.argmax(X[band]); fpk = f[band][k]; peak = X[band][k]
+    for div in (2, 3):                                        # if a harmonic won, check for a real fundamental below it
+        cand = fpk / div
+        if cand >= 60:
+            kk = int(round(cand / (f[1] - f[0])))
+            if X[kk - 2:kk + 3].max() > 0.3 * peak: fpk = cand
+    return float(fpk)
+
+def prepare_om(path, target_f0):
+    """Load a sung Om, resample so its fundamental sits on target_f0 (harmony with Sa), return mono float32 + f0s."""
+    data, err = load_clip(path)
+    if data is None: return None, None, err
+    mono = (data[:, 0] + data[:, 1]) * 0.5
+    f0 = dominant_f0(mono)
+    ratio = target_f0 / max(30.0, f0)                          # >1 = pitch up (shorter)
+    n2 = int(len(mono) / ratio)
+    x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
+    x = x / (np.abs(x).max() + 1e-6)
+    return x, f0, None
 
 def load_clip(path):
     """Return float32 (n,2) at SR. WAV via stdlib; anything else via ffmpeg if present."""
@@ -100,6 +133,8 @@ class Engine:
         self.ph = [0.0, 0.0]   # binaural phases
         self.om_ph = np.zeros(28)     # Om harmonic phases (additive formant voice)
         self.om_t = 0.0               # Om cycle clock (s)
+        self.om_smp = None            # dict(x, f0, target, path, pos) when a sample Om is loaded
+        self.om_key = None            # (voice, target_f0) the loaded sample was prepared for
         self.fcur = [None, None]   # glided (base, beat): frequencies move toward S over ~20 ms, no clicks while dragging
         self.plucks = []       # (start_sample, freq, amp)
         self.next_pluck = 0
@@ -202,7 +237,9 @@ class Engine:
         return {"on": self.on, "timerLeft": int(self.timer_left()), "beat": self.S["beat"], "base": self.S["base"],
                 "scene": self.S["scene"], "rhythm": self.S["rhythm"], "breath": self.S["breath"],
                 "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
-                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "om": self.S["om"], "omlvl": self.S["omlvl"], "clips": self.clip_status(), "clipDir": CLIP_DIR}
+                "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "om": self.S["om"], "omlvl": self.S["omlvl"],
+                "omSource": ("sample %s (f0 %.0f Hz → %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"], self.om_smp["target"])) if self.om_smp else ("synth" if self.S["om"] != "off" else "off"),
+                "omDir": OM_DIR, "clips": self.clip_status(), "clipDir": CLIP_DIR}
 
     # -------------------------------------------------- analysis (what the visuals listen to)
     def analyse(self, out):
@@ -414,13 +451,36 @@ class Engine:
             else: continue
             out[:, 0] += lay; out[:, 1] += lay * .92
 
-        # Om — additive formant voice on Sa. o → m over the phonation, breath pause, ~10 s cycle.
+        # Om — a sung sample (om_<voice>.*) pitch-matched to Sa when present; additive formant voice otherwise.
+        om_done = False
         if S["om"] != "off" and S["omlvl"] > 0:
             sa = S["base"]
             lo_, hi_ = (90.0, 150.0) if S["om"] == "male" else (200.0, 330.0)
             f0 = sa
             while f0 > hi_: f0 /= 2.0
             while f0 < lo_: f0 *= 2.0
+            key = (S["om"], round(f0, 1))
+            if self.om_key != key:
+                self.om_key = key; self.om_smp = None
+                path = find_om_sample(S["om"])
+                if path:
+                    x, sf0, err = prepare_om(path, f0)
+                    if x is not None and len(x) > SR:
+                        self.om_smp = dict(x=x, f0=sf0, target=f0, path=path, pos=0)
+            if self.om_smp is not None:
+                sm = self.om_smp; x = sm["x"]; L = len(x); pos = sm["pos"]; got = 0
+                seg = np.zeros(n, np.float32)
+                while got < n:
+                    take = min(n - got, L - pos); seg[got:got + take] = x[pos:pos + take]; got += take; pos += take
+                    if pos >= L: pos = 0
+                sm["pos"] = pos
+                fade = int(0.25 * SR)                                              # seam softener at the loop point
+                idx = (np.arange(n) + (pos - n)) % L
+                w = np.minimum(1.0, np.minimum(idx, L - idx) / fade)
+                seg *= w * 0.5 * S["omlvl"]
+                out[:, 0] += seg; out[:, 1] += seg * 0.97
+                om_done = True
+        if S["om"] != "off" and S["omlvl"] > 0 and not om_done:
             T = 10.0
             tt = (self.om_t + np.arange(n) / SR) % T
             self.om_t = (self.om_t + n / SR) % T

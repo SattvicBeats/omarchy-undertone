@@ -11,6 +11,7 @@
 | 0.6.3 | v0.6.3 | 4684fd623f3fca0a | winfo IPC; hard re-show (diagnostic build) | service ✓ |
 
 Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visible, panel open).
+| 0.6.4 | v0.6.4 | (see bundle) | Om from user samples (pitch-matched, looped), synth fallback; source readout | service ✓ · continuity ✓ · sample pitch ✓ |
 
 ## Rollback
     undertone-release list

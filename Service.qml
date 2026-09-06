@@ -47,6 +47,8 @@ Item {
   property string noise: "Off"
   property var nature: []
   property string om: "off"
+  property string omSource: "off"
+  property string omDir: ""
   property real omlvl: 0.5
   readonly property bool windowOpen: win.visible
   property int visModel: 4               // 0 field · 1 lava · 2 flow · 3 spectrum · 4 cymatics
@@ -101,6 +103,8 @@ Item {
     if ("nature" in s) root.nature = s.nature || []
     if ("om" in s) root.om = String(s.om)
     if ("omlvl" in s) root.omlvl = Number(s.omlvl)
+    if ("omSource" in s) root.omSource = String(s.omSource)
+    if ("omDir" in s) root.omDir = String(s.omDir)
   }
 
   // ---- engine process
@@ -178,7 +182,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.6.3", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.4", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -566,7 +570,13 @@ Item {
           }
           Text { text: "level"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
           PanelSlider { Layout.preferredWidth: 160; minimum: 0; maximum: 1; step: 0.01; value: root.omlvl; onMoved: function(v) { root.setLive({ omlvl: v }) }; onReleased: function(v) { root.set({ omlvl: v }) } }
-          Text { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "A synthesised voice on the same Sa as the drone: o → m over eight seconds, then a breath."; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+        }
+        RowLayout {
+          Layout.fillWidth: true; spacing: Style.space(8)
+          Text { Layout.fillWidth: true; wrapMode: Text.Wrap
+                 text: "Source: " + root.omSource + ".  Drop your own sung Om as om_male.* / om_female.* (wav, or mp3 with ffmpeg) in " + root.omDir + " — it is pitch-matched to Sa and looped; the synth is the fallback."
+                 color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Button { text: "Open Om folder"; onClicked: Qt.openUrlExternally("file://" + root.omDir) }
         }
 
         // noise + places
