@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# undertone-release — versioned install / rollback for the bharat.undertone Omarchy plugin.
+#   undertone-release install <tarball.tgz>   copy into the release store, install, restart shell
+#   undertone-release rollback <version>       reinstall a stored version (e.g. 0.6.1)
+#   undertone-release list                     stored versions (* = installed)
+#   undertone-release current                  installed version
+# Store: ~/.local/share/undertone/releases/<version>.tgz   Plugin: ~/.config/omarchy/plugins/bharat.undertone
+set -e
+STORE="$HOME/.local/share/undertone/releases"; PLUG="$HOME/.config/omarchy/plugins/bharat.undertone"
+mkdir -p "$STORE"
+ver_of() { tar -xzOf "$1" bharat.undertone/manifest.json | grep -o '"version": *"[^"]*"' | grep -o '[0-9][0-9.]*'; }
+cur() { grep -o '"version": *"[^"]*"' "$PLUG/manifest.json" 2>/dev/null | grep -o '[0-9][0-9.]*' || echo none; }
+do_install() {   # $1 = tarball path
+  local v; v=$(ver_of "$1"); [ -n "$v" ] || { echo "not an undertone tarball: $1"; exit 1; }
+  cp -f "$1" "$STORE/$v.tgz"
+  local prev; prev=$(cur)
+  rm -rf "$PLUG" && tar -C "$(dirname "$PLUG")" -xzf "$STORE/$v.tgz"
+  echo "$(date +%FT%T) $prev -> $v" >> "$STORE/history.log"
+  pkill -x quickshell || true; sleep 8
+  echo "installed $v (was $prev); shell restarted. status: $(omarchy-shell undertone status 2>&1 | head -c 120)"
+}
+case "${1:-}" in
+  install)  [ -f "${2:-}" ] || { echo "usage: undertone-release install <tarball.tgz>"; exit 1; }; do_install "$2" ;;
+  rollback) [ -f "$STORE/${2:-}.tgz" ] || { echo "no stored version ${2:-}; have: $(ls "$STORE" | sed 's/.tgz//' | tr '\n' ' ')"; exit 1; }; do_install "$STORE/$2.tgz" ;;
+  list)     c=$(cur); for f in $(ls "$STORE"/*.tgz 2>/dev/null | sort -V); do v=$(basename "$f" .tgz); [ "$v" = "$c" ] && echo "* $v" || echo "  $v"; done ;;
+  current)  cur ;;
+  *) sed -n 2,7p "$0" ;;
+esac
