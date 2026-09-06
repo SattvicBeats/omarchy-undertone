@@ -40,9 +40,9 @@ a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the
 - **Spectrum** — 32 bars with peak hold, left-tone colour low, right-tone colour high
 - **Cymatics** (default) — a real Chladni plate. `engine/plate.py` solves the free-edge circular
   plate equation (Bessel J/I by quadrature, free-edge boundary determinant, eigenvalues match
-  Leissa's table to 3 digits; lowest mode (2,0) tuned to 60 Hz; 26 modes to ~1.9 kHz, cached in
-  `~/.cache/undertone/plate-v1.json`). Every frame each mode's amplitude is the plate's Lorentzian
-  resonant response to the measured 32-band spectrum; the shader sums a_i·R_i(r)·cos(n_i θ) from
+  Leissa's table to 3 digits; lowest mode (2,0) tuned to 40 Hz; 43 modes to ~2.9 kHz, cached in
+  `~/.cache/undertone/plate-v2.json`). Every frame each mode's amplitude is the plate's Lorentzian
+  resonant response to the measured 32-band spectrum (linear power, so the peaks dominate); the shader sums a_i·R_i(r)·cos(n_i θ) from
   the eigenmode lookup texture and puts sand where the plate is still. A tone between resonances
   superposes its neighbours exactly as a driven plate does. Line sharpness follows loudness;
   hits shake the grain.

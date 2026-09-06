@@ -157,9 +157,17 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.5.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.5.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
+    function modes(): string {
+      // the plate's current excitation: top 5 modes by amplitude — run it twice with different bases
+      if (!root.plateMsg || !root.modeAmps.length) return JSON.stringify({ plate: !!root.plateMsg, note: "no plate/amps yet (engine solves the plate ~6 s after start; amps stream while playing)" })
+      var idx = []; for (var i = 0; i < root.modeAmps.length; i++) idx.push(i)
+      idx.sort(function(a, b) { return root.modeAmps[b] - root.modeAmps[a] })
+      var out = []; for (var k = 0; k < 5 && k < idx.length; k++) { var i2 = idx[k]; out.push({ n: root.plateMsg.n[i2], f: root.plateMsg.f[i2], amp: root.modeAmps[i2] }) }
+      return JSON.stringify({ modes: root.plateMsg.count, earTones: [root.audio[4], root.audio[5]], top: out })
+    }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3; else if (k === "cymatics") root.visModel = 4 }
     function status(): string {

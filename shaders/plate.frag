@@ -17,8 +17,8 @@ layout(std140, binding = 0) uniform buf {
     vec4 colL;
     vec4 colR;
     vec4 colF;
-    vec4 a0; vec4 a1; vec4 a2; vec4 a3; vec4 a4; vec4 a5; vec4 a6;   // mode amplitudes 0..1 (28 slots)
-    vec4 n0; vec4 n1; vec4 n2; vec4 n3; vec4 n4; vec4 n5; vec4 n6;   // nodal-diameter counts per mode
+    vec4 a0; vec4 a1; vec4 a2; vec4 a3; vec4 a4; vec4 a5; vec4 a6; vec4 a7; vec4 a8; vec4 a9; vec4 a10; vec4 a11; vec4 a12; vec4 a13;   // mode amplitudes (56 slots)
+    vec4 n0; vec4 n1; vec4 n2; vec4 n3; vec4 n4; vec4 n5; vec4 n6; vec4 n7; vec4 n8; vec4 n9; vec4 n10; vec4 n11; vec4 n12; vec4 n13;   // nodal diameters per mode
 } u;
 layout(binding = 1) uniform sampler2D lut;
 
@@ -29,11 +29,11 @@ void main() {
     uv.x *= u.aspect;
     float r = length(uv);
     float th = atan(uv.y, uv.x);
-    vec4 A[7] = vec4[7](u.a0, u.a1, u.a2, u.a3, u.a4, u.a5, u.a6);
-    vec4 N[7] = vec4[7](u.n0, u.n1, u.n2, u.n3, u.n4, u.n5, u.n6);
+    vec4 A[14] = vec4[14](u.a0, u.a1, u.a2, u.a3, u.a4, u.a5, u.a6, u.a7, u.a8, u.a9, u.a10, u.a11, u.a12, u.a13);
+    vec4 N[14] = vec4[14](u.n0, u.n1, u.n2, u.n3, u.n4, u.n5, u.n6, u.n7, u.n8, u.n9, u.n10, u.n11, u.n12, u.n13);
     float W = 0.0, norm = 0.0;
     int cnt = int(u.count);
-    for (int i = 0; i < 28; i++) {
+    for (int i = 0; i < 56; i++) {
         if (i >= cnt) break;
         float a = A[i >> 2][i & 3];
         if (a < 0.003) continue;

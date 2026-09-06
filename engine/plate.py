@@ -13,7 +13,7 @@ render(modes, amps, lut, size)      -> uint8 sand image (offline check)
 import numpy as np
 
 NU = 0.33      # Poisson ratio
-F0 = 60.0      # Hz of the lowest mode (2,0): fixes the plate size/thickness
+F0 = 40.0      # Hz of the lowest mode (2,0): fixes the plate size/thickness (larger plate = denser modes)
 TAU = np.linspace(0, np.pi, 1201)
 _trap = getattr(np, "trapezoid", None) or getattr(np, "trapz")
 
@@ -80,7 +80,7 @@ def find_roots(n, lam_max=16.0, step=0.02, max_modes=3):
             if len(roots) >= max_modes: break
     return roots
 
-def plate_table(n_max=8, per_n=3, lam_max=16.0):
+def plate_table(n_max=11, per_n=4, lam_max=20.0):
     modes = []
     for n in range(0, n_max + 1):
         for s, lam in enumerate(find_roots(n, lam_max=lam_max, max_modes=per_n)):

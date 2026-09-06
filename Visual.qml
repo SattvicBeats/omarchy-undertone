@@ -118,7 +118,7 @@ Item {
   Loader {
     id: lutLoader
     active: host.plateLut !== ""
-    sourceComponent: Image { source: host.plateLut; width: 256; height: 32; visible: false; cache: false; asynchronous: false; smooth: true; mipmap: false }
+    sourceComponent: Image { source: host.plateLut; width: 256; height: 64; visible: false; cache: false; asynchronous: false; smooth: true; mipmap: false }
   }
   readonly property bool lutReady: lutLoader.item !== null && lutLoader.item.status === Image.Ready
   // while the plate is not solved yet (first ~3 s), show the plain plate
@@ -139,10 +139,34 @@ Item {
     property color colR: host.colR
     property color colF: host.colF
     function v4(arr, i, div) { return Qt.vector4d((arr[i] || 0) / div, (arr[i + 1] || 0) / div, (arr[i + 2] || 0) / div, (arr[i + 3] || 0) / div) }
-    property vector4d a0: v4(host.plateAmps, 0, 100); property vector4d a1: v4(host.plateAmps, 4, 100); property vector4d a2: v4(host.plateAmps, 8, 100); property vector4d a3: v4(host.plateAmps, 12, 100)
-    property vector4d a4: v4(host.plateAmps, 16, 100); property vector4d a5: v4(host.plateAmps, 20, 100); property vector4d a6: v4(host.plateAmps, 24, 100)
-    property vector4d n0: v4(host.plateN, 0, 1); property vector4d n1: v4(host.plateN, 4, 1); property vector4d n2: v4(host.plateN, 8, 1); property vector4d n3: v4(host.plateN, 12, 1)
-    property vector4d n4: v4(host.plateN, 16, 1); property vector4d n5: v4(host.plateN, 20, 1); property vector4d n6: v4(host.plateN, 24, 1)
+    property vector4d a0: v4(host.plateAmps, 0, 100)
+    property vector4d a1: v4(host.plateAmps, 4, 100)
+    property vector4d a2: v4(host.plateAmps, 8, 100)
+    property vector4d a3: v4(host.plateAmps, 12, 100)
+    property vector4d a4: v4(host.plateAmps, 16, 100)
+    property vector4d a5: v4(host.plateAmps, 20, 100)
+    property vector4d a6: v4(host.plateAmps, 24, 100)
+    property vector4d a7: v4(host.plateAmps, 28, 100)
+    property vector4d a8: v4(host.plateAmps, 32, 100)
+    property vector4d a9: v4(host.plateAmps, 36, 100)
+    property vector4d a10: v4(host.plateAmps, 40, 100)
+    property vector4d a11: v4(host.plateAmps, 44, 100)
+    property vector4d a12: v4(host.plateAmps, 48, 100)
+    property vector4d a13: v4(host.plateAmps, 52, 100)
+    property vector4d n0: v4(host.plateN, 0, 1)
+    property vector4d n1: v4(host.plateN, 4, 1)
+    property vector4d n2: v4(host.plateN, 8, 1)
+    property vector4d n3: v4(host.plateN, 12, 1)
+    property vector4d n4: v4(host.plateN, 16, 1)
+    property vector4d n5: v4(host.plateN, 20, 1)
+    property vector4d n6: v4(host.plateN, 24, 1)
+    property vector4d n7: v4(host.plateN, 28, 1)
+    property vector4d n8: v4(host.plateN, 32, 1)
+    property vector4d n9: v4(host.plateN, 36, 1)
+    property vector4d n10: v4(host.plateN, 40, 1)
+    property vector4d n11: v4(host.plateN, 44, 1)
+    property vector4d n12: v4(host.plateN, 48, 1)
+    property vector4d n13: v4(host.plateN, 52, 1)
     property variant lut: lutLoader.item
     fragmentShader: Qt.resolvedUrl("shaders/plate.frag.qsb")
     onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "cymatics shader: " + log; host.gpu = false }

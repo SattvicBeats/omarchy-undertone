@@ -111,7 +111,8 @@ class Engine:
         self.an = {"rms": 0.0, "lo": 0.0, "mid": 0.0, "hi": 0.0}   # smoothed analysis
         self.anst = {"lo": 0.0, "hi": 0.0}                            # filter state
         self.ring = np.zeros((8192, 2), np.float32)                   # last 171 ms of output for the FFT
-        self.bands = np.zeros(32)                                      # smoothed log-spaced spectrum, 0..1
+        self.bands = np.zeros(32)                                      # smoothed log-spaced spectrum, 0..1 (display)
+        self.lin = np.zeros(32)                                        # linear band power, 0..1 of the current max (plate drive)
         self.peaks = [0.0, 0.0]                                        # measured strongest tone per ear, Hz
         self.win = np.hanning(8192).astype(np.float32)
         edges = np.geomspace(40, 16000, 33); self.bandIdx = np.searchsorted(np.fft.rfftfreq(8192, 1 / SR), edges)
@@ -215,7 +216,7 @@ class Engine:
     def solve_plate(self):
         """Free-edge circular plate eigenmodes (see plate.py). Cached on disk; ~3 s cold."""
         cache_dir = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-        cache = os.path.join(cache_dir, "undertone", "plate-v1.json")
+        cache = os.path.join(cache_dir, "undertone", "plate-v2.json")
         modes = None
         try:
             with open(cache) as fh: modes = json.load(fh)
@@ -255,11 +256,13 @@ class Engine:
             else:
                 self.peaks[ch] = 0.0
         M = (XL + XR) * 0.5
-        bands = np.array([M[self.bandIdx[i]:max(self.bandIdx[i] + 1, self.bandIdx[i + 1])].max() for i in range(32)])
-        bands = np.clip((np.log10(bands + 1e-3) + 1.0) / 3.2, 0, 1)      # ~ -20 dB .. +44 dB window
+        raw = np.array([M[self.bandIdx[i]:max(self.bandIdx[i] + 1, self.bandIdx[i + 1])].max() for i in range(32)])
+        bands = np.clip((np.log10(raw + 1e-3) + 1.0) / 3.2, 0, 1)        # display: ~ -20 dB .. +44 dB window
+        lin = raw * raw; lin = lin / (lin.max() + 1e-9)                   # plate drive: linear power, peaks dominate
+        self.lin += (lin - self.lin) * np.where(lin > self.lin, .6, .25)
         self.bands += (bands - self.bands) * np.where(bands > self.bands, .5, .18)
         if self.plate is not None:                                      # plate response to the measured spectrum
-            amp = PLATE.response(self.plate["modes"], self.bandHz, self.bands ** 2)
+            amp = PLATE.response(self.plate["modes"], self.bandHz, self.lin, gamma_ratio=0.035)
             amp = amp / (amp.max() + 1e-9) * min(1.0, self.an["rms"] * 3.0)
             self.mode_amp += (amp - self.mode_amp) * np.where(amp > self.mode_amp, .45, .12)
 
