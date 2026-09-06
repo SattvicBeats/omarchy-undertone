@@ -10,7 +10,7 @@ def rd():
     for _ in p.stdout: time.sleep(0.5)
 threading.Thread(target=rd, daemon=True).start()
 def send(o): p.stdin.write(json.dumps(o) + "\n"); p.stdin.flush()
-time.sleep(1); send({"cmd": "scene", "name": "Heart"}); send({"cmd": "play"}); time.sleep(12)
+time.sleep(0.2); send({"cmd": "scene", "name": "Heart"}); send({"cmd": "play"}); time.sleep(12)   # play before the plate message: worst case for a blocking write
 send({"cmd": "stop"}); time.sleep(2); send({"cmd": "quit"}); time.sleep(0.5)
 e = p.stderr.read()
 launches = e.count("AUDIO"); stalls = [l for l in e.splitlines() if "stalls>50ms: 0" not in l and "AUDIO" in l]

@@ -98,6 +98,7 @@ class Engine:
         self.t0 = 0            # absolute sample counter while on
         self.timer_end = 0     # absolute sample when timer stops
         self.ph = [0.0, 0.0]   # binaural phases
+        self.fcur = [None, None]   # glided (base, beat): frequencies move toward S over ~20 ms, no clicks while dragging
         self.plucks = []       # (start_sample, freq, amp)
         self.next_pluck = 0
         self.events = []       # (start_sample, voice_key, amp)
@@ -293,8 +294,11 @@ class Engine:
         t0 = self.t0
         t = np.arange(n) / SR
 
-        # binaural pair: L = base, R = base + beat (hard L/R, as in the web app)
-        fL, fR = S["base"], S["base"] + S["beat"]
+        # binaural pair: L = base, R = base + beat (hard L/R, as in the web app); glide toward targets
+        if self.fcur[0] is None: self.fcur = [S["base"], S["beat"]]
+        self.fcur[0] += (S["base"] - self.fcur[0]) * 0.65
+        self.fcur[1] += (S["beat"] - self.fcur[1]) * 0.65
+        fL, fR = self.fcur[0], self.fcur[0] + self.fcur[1]
         phL = self.ph[0] + 2 * np.pi * fL * t
         phR = self.ph[1] + 2 * np.pi * fR * t
         self.ph[0] = (phL[-1] + 2 * np.pi * fL / SR) % (2 * np.pi)
@@ -472,22 +476,27 @@ def main():
         os._exit(0)
     # stdout goes through a writer thread: if the shell is slow to read, audio keeps going and
     # stale analysis frames are dropped instead of blocking block() on a full pipe
-    outq = queue.Queue(maxsize=32)
-    wlock = threading.Lock()
-    def _write(line):
-        with wlock:
+    # Only the writer thread ever touches stdout. Two queues: `dropq` (bounded, analysis/status —
+    # dropped when the shell is behind) and `ctlq` (unbounded, command replies + the plate message —
+    # always delivered). Neither the audio thread nor the reader thread can block on the pipe.
+    dropq = queue.Queue(maxsize=32)
+    ctlq = queue.Queue()
+    def writer():
+        while True:
+            try: line = ctlq.get(timeout=0.02)
+            except queue.Empty:
+                try: line = dropq.get(timeout=0.02)
+                except queue.Empty: continue
             try: sys.stdout.write(line); sys.stdout.flush()
             except Exception: os._exit(0)
-    def writer():
-        while True: _write(outq.get())
     threading.Thread(target=writer, daemon=True).start()
     def emit(o, droppable=False):
         line = json.dumps(o) + "\n"
-        if droppable:                        # analysis frames from the audio thread: never block, drop if behind
-            try: outq.put_nowait(line)
+        if droppable:
+            try: dropq.put_nowait(line)
             except queue.Full: pass
-        else:                                # command replies / plate: written by the caller's own thread
-            _write(line)
+        else:
+            ctlq.put(line)
     threading.Thread(target=reader, daemon=True).start()
     eng.scan_clips()
     emit({"ready": True, "clipDir": CLIP_DIR, **eng.status()})
@@ -515,7 +524,7 @@ def main():
             with eng.lock: eng.plate_msg = None
             emit(pm)
         if time.time() - last >= 1.0:
-            last = time.time(); emit(eng.status())
+            last = time.time(); emit(eng.status(), droppable=True)
 
 if __name__ == "__main__":
     main()

@@ -134,6 +134,18 @@ Item {
   function stop() { send({ cmd: "stop" }) }
   function togglePlay() { send({ cmd: "toggle" }) }
   function set(o) { o.cmd = "set"; send(o) }
+  // sliders send while dragging, throttled to ~20/s; the engine glides between values
+  property var pendingSet: null
+  Timer { id: setThrottle; interval: 50; repeat: false; onTriggered: { if (root.pendingSet) { var o = root.pendingSet; root.pendingSet = null; root.set(o) } } }
+  function setLive(o) {
+    if (setThrottle.running) { root.pendingSet = Object.assign(root.pendingSet || {}, o); return }
+    root.set(o); setThrottle.start()
+  }
+  // log-scale base: slider position 0..1 <-> 40..800 Hz (each octave gets equal travel)
+  readonly property real baseLo: 40
+  readonly property real baseHi: 800
+  function posToHz(p) { return baseLo * Math.pow(baseHi / baseLo, Math.max(0, Math.min(1, p))) }
+  function hzToPos(f) { return Math.log(Math.max(baseLo, Math.min(baseHi, f)) / baseLo) / Math.log(baseHi / baseLo) }
   function setScene(name) { send({ cmd: "scene", name: String(name) }) }
   function rescanClips() { send({ cmd: "clips" }) }
   function setClip(name, o) { o.cmd = "clip"; o.name = name; send(o) }
@@ -157,7 +169,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.5.3", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.5.4", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -427,7 +439,7 @@ Item {
         }
 
         // tones
-        PanelSectionHeader { text: "Beat  " + root.beat.toFixed(2) + " Hz     Base  " + Math.round(root.base) + " Hz" }
+        PanelSectionHeader { text: "Beat  " + root.beat.toFixed(2) + " Hz     Base  " + root.base.toFixed(1) + " Hz     L " + root.base.toFixed(2) + " · R " + (root.base + root.beat).toFixed(2) }
         Flow {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
@@ -444,22 +456,30 @@ Item {
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
           Text { text: "Beat"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.preferredWidth: 60 }
-          PanelSlider { Layout.fillWidth: true; minimum: 0.5; maximum: 47; step: 0.01; value: root.beat; onReleased: function(v) { root.set({ beat: Math.round(v * 100) / 100 }) } }
+          PanelSlider { id: beatSlider; Layout.fillWidth: true; minimum: 0.5; maximum: 50; step: 0.01; value: root.beat
+            onMoved: function(v) { root.beat = v; root.setLive({ beat: Math.round(v * 100) / 100 }) }
+            onReleased: function(v) { root.set({ beat: Math.round(v * 100) / 100 }) }
+            // wheel: ±0.1 Hz; with Shift ±1 Hz
+            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 1 : 0.1); var nb = Math.max(0.5, Math.min(50, Math.round((root.beat + d) * 100) / 100)); root.set({ beat: nb }); w.accepted = true } } }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
           Text { text: "Base"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.preferredWidth: 60 }
-          PanelSlider { Layout.fillWidth: true; minimum: 60; maximum: 440; step: 1; integer: true; value: root.base; onReleased: function(v) { root.set({ base: Math.round(v) }) } }
+          PanelSlider { id: baseSlider; Layout.fillWidth: true; minimum: 0; maximum: 1; step: 0.001; value: root.hzToPos(root.base); tickCount: 5
+            onMoved: function(p) { var hz = Math.round(root.posToHz(p) * 10) / 10; root.base = hz; root.setLive({ base: hz }) }
+            onReleased: function(p) { root.set({ base: Math.round(root.posToHz(p) * 10) / 10 }) }
+            // wheel: ±1 Hz; with Shift ±10 Hz
+            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 10 : 1); var nb = Math.max(40, Math.min(800, Math.round((root.base + d) * 10) / 10)); root.set({ base: nb }); w.accepted = true } } }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
           Text { text: "Volume"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.preferredWidth: 60 }
-          PanelSlider { Layout.fillWidth: true; minimum: 0; maximum: 1; step: 0.01; value: root.vol; onReleased: function(v) { root.set({ vol: v }) } }
+          PanelSlider { Layout.fillWidth: true; minimum: 0; maximum: 1; step: 0.01; value: root.vol; onMoved: function(v) { root.setLive({ vol: v }) }; onReleased: function(v) { root.set({ vol: v }) } }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
           Text { text: "Tanpura"; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.preferredWidth: 60 }
-          PanelSlider { Layout.fillWidth: true; minimum: 0; maximum: 1; step: 0.01; value: root.drone; onReleased: function(v) { root.set({ drone: v }) } }
+          PanelSlider { Layout.fillWidth: true; minimum: 0; maximum: 1; step: 0.01; value: root.drone; onMoved: function(v) { root.setLive({ drone: v }) }; onReleased: function(v) { root.set({ drone: v }) } }
         }
 
         // rhythm
