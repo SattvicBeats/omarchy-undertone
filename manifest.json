@@ -2,11 +2,14 @@
   "schemaVersion": 1,
   "id": "bharat.undertone",
   "name": "Undertone",
-  "version": "0.6.9",
-  "author": "Bharat / sworn.legal",
+  "version": "0.7.0",
+  "author": "Bharat Sharma (SattvicBeats)",
   "license": "MIT",
-  "description": "Native binaural-beat instrument: hard-L/R beat, tanpura drone, Hindustani taals, noise colours, weather layers, breath pacer, sleep timer, Chladni-plate cymatics from a solved free-edge plate, spectrum/field/lava/flow visuals, fullscreen screensaver. No browser, no network. Audio via PipeWire.",
-  "kinds": ["service", "bar-widget"],
+  "description": "Binaural-beat instrument: tanpura drone, taals, noise colours, weather, Om, breath pacer, sleep timer; visuals measured from the output incl. a solved Chladni plate; fullscreen screensaver. numpy engine \u2192 PipeWire.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
   "keepLoaded": true,
   "entryPoints": {
     "service": "Service.qml",
@@ -18,9 +21,17 @@
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": { "showLabel": true },
+    "defaults": {
+      "showLabel": true
+    },
     "schema": [
-      { "key": "showLabel", "type": "boolean", "label": "Show beat / timer label", "defaultValue": true }
+      {
+        "key": "showLabel",
+        "type": "boolean",
+        "label": "Show beat / timer label",
+        "defaultValue": true
+      }
     ]
-  }
+  },
+  "repository": "https://github.com/SattvicBeats/omarchy-undertone"
 }

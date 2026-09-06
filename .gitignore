@@ -1,0 +1,4 @@
+test/plug/
+test/home/
+__pycache__/
+*.pyc
