@@ -6,7 +6,7 @@ import "visual.js" as VL
 // this item, so the GPU does the upscaling (linear-filtered, like the web).
 Item {
   id: host
-  readonly property var V: VL.create()      // this visual's own model state
+  readonly property var vis: VL.create()    // this visual's own model state
   property real beat: 10
   property real base: 196
   property int model: 0            // 0 field · 1 lava · 2 flow
@@ -54,7 +54,7 @@ Item {
     if (a[4] > 0) fL = a[4]; if (a[5] > 0) fR = a[5]
     if (audioOn && a[4] > 0 && a[5] > 0) beatPhase = (beatPhase + 2 * Math.PI * (a[5] - a[4]) * dt) % (2 * Math.PI)
     if (s) bands = s
-    V.setAudio(a[0], a[1], a[2], a[3], a[4], a[5], a[6], beatPhase, s)
+    vis.setAudio(a[0], a[1], a[2], a[3], a[4], a[5], a[6], beatPhase, s)
   }
   property var probe: null
   property var readback: null
@@ -63,17 +63,17 @@ Item {
   readonly property int effFps: useGpu || model === 3 ? fps : Math.min(fps, 15)
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
-  function pulse(a) { V.hit(a); hitLevel = Math.max(hitLevel, a) }
-  function resetVisual() { V.resetVis() }
+  function pulse(a) { vis.hit(a); hitLevel = Math.max(hitLevel, a) }
+  function resetVisual() { vis.resetVis() }
 
-  onColLChanged: V.setPalette(colL, colR, colF)
-  onColRChanged: V.setPalette(colL, colR, colF)
-  onColFChanged: V.setPalette(colL, colR, colF)
-  onBeatChanged: V.setState(beat, base, model)
-  onBaseChanged: V.setState(beat, base, model)
-  onModelChanged: { V.setState(beat, base, model); V.resetVis() }
-  onBreathLevelChanged: V.setBreath(breathLevel)
-  Component.onCompleted: { V.setPalette(colL, colR, colF); V.setState(beat, base, model) }
+  onColLChanged: vis.setPalette(colL, colR, colF)
+  onColRChanged: vis.setPalette(colL, colR, colF)
+  onColFChanged: vis.setPalette(colL, colR, colF)
+  onBeatChanged: vis.setState(beat, base, model)
+  onBaseChanged: vis.setState(beat, base, model)
+  onModelChanged: { vis.setState(beat, base, model); vis.resetVis() }
+  onBreathLevelChanged: vis.setBreath(breathLevel)
+  Component.onCompleted: { vis.setPalette(colL, colR, colF); vis.setState(beat, base, model) }
 
   ShaderEffect {
     id: fieldFx
@@ -255,9 +255,9 @@ Item {
   function gpuFrame(dt) {
     host.paints++
     host.hitLevel *= Math.pow(0.02, dt)
-    if (V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) V.useOwnBuffer(host.bw, host.bh)
-    if (host.model === 1) lavaFx.setBlobs(V.stepLavaOnly(dt))
-    else { V.tickFlash(dt); host.shaderTime += dt }
+    if (vis.bufferSize()[0] !== host.bw || vis.bufferSize()[1] !== host.bh) vis.useOwnBuffer(host.bw, host.bh)
+    if (host.model === 1) lavaFx.setBlobs(vis.stepLavaOnly(dt))
+    else { vis.tickFlash(dt); host.shaderTime += dt }
   }
 
   // model 3: Spectrum — 32 log bands, left-tone colour low, right-tone colour high, peak hold
@@ -306,10 +306,10 @@ Item {
   function paintBmp() {
     host.paints++
     try {
-      if (!im.ready || V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) { V.useOwnBuffer(host.bw, host.bh); im.ready = true }
-      V.frame(cv.t, 1 / host.fps)
-      im.source = "data:image/bmp;base64," + V.toBmpBase64()
-      if ((host.paints & 31) === 0) host.probe = V.probe()
+      if (!im.ready || vis.bufferSize()[0] !== host.bw || vis.bufferSize()[1] !== host.bh) { vis.useOwnBuffer(host.bw, host.bh); im.ready = true }
+      vis.frame(cv.t, 1 / host.fps)
+      im.source = "data:image/bmp;base64," + vis.toBmpBase64()
+      if ((host.paints & 31) === 0) host.probe = vis.probe()
     } catch (e) { host.lastError = String(e); host.painter = "rects" }
   }
 
@@ -335,15 +335,15 @@ Item {
         var ctx = getContext("2d")
         host.ctxOk = !!ctx
         if (host.painter === "imagedata") {
-          if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); V.setup(img) }
-          V.frame(t, 1 / host.fps)
+          if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); vis.setup(img) }
+          vis.frame(t, 1 / host.fps)
           ctx.putImageData(img, 0, 0)
         } else {
-          if (!img || img.width !== width || img.height !== height) { V.useOwnBuffer(width, height); img = { width: width, height: height } }
-          V.frame(t, 1 / host.fps)
-          V.paintRects(ctx)
+          if (!img || img.width !== width || img.height !== height) { vis.useOwnBuffer(width, height); img = { width: width, height: height } }
+          vis.frame(t, 1 / host.fps)
+          vis.paintRects(ctx)
         }
-        if ((host.paints & 31) === 0) { host.probe = V.probe(); var rb = ctx.getImageData(0, 0, 1, 1); host.readback = rb && rb.data ? [rb.data[0] | 0, rb.data[1] | 0, rb.data[2] | 0, rb.data[3] | 0] : null }
+        if ((host.paints & 31) === 0) { host.probe = vis.probe(); var rb = ctx.getImageData(0, 0, 1, 1); host.readback = rb && rb.data ? [rb.data[0] | 0, rb.data[1] | 0, rb.data[2] | 0, rb.data[3] | 0] : null }
       } catch (e) { host.lastError = String(e) }
     }
   }
