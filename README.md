@@ -48,8 +48,9 @@ The visual runs fullscreen on every monitor; any key or mouse movement closes it
     manifest.json        service + bar-widget, keepLoaded
     Service.qml          engine process, state, IPC, control panel window
     BarWidget.qml        bar pill
-    Visual.qml           canvas host (panel strip + screensaver)
-    visual.js            the three visual models, ported from the web instrument
+    Visual.qml           visual host: field + lava as GPU fragment shaders, flow via JS
+    visual.js            the three visual models ported from the web instrument (blob physics, flow, JS fallback)
+    shaders/*.frag       GLSL sources; *.frag.qsb are the baked Qt shaders (qsb --glsl "100 es,120,150" --hlsl 50 --msl 12)
     engine/gc_engine.py  synthesis + JSON-line control protocol
     engine/data.json     scenes / bands / rhythms / breaths (shared with the web app)
 

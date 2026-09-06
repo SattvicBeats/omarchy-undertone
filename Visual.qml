@@ -20,11 +20,14 @@ Item {
   property int ticks: 0
   property string lastError: ""
   property bool ctxOk: false
-  property string painter: "bmp"       // "bmp" (Image from data URL) | "rects" (Canvas fillRect fallback)
+  property string painter: "bmp"       // JS path for Flow / fallback: "bmp" (Image from data URL) | "rects" (Canvas fillRect)
+  property bool gpu: true              // field + lava as fragment shaders at native resolution
+  readonly property bool useGpu: gpu && model !== 2
+  property real shaderTime: 0
   property var probe: null
   property var readback: null
 
-  readonly property int bw: painter === "rects" ? Math.min(bufferWidth, 160) : bufferWidth
+  readonly property int bw: useGpu ? 160 : (painter === "rects" ? Math.min(bufferWidth, 160) : bufferWidth)
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
   function pulse(a) { V.hit(a) }
@@ -39,17 +42,62 @@ Item {
   onBreathLevelChanged: V.setBreath(breathLevel)
   Component.onCompleted: { V.setPalette(colL, colR, colF); V.setState(beat, base, model) }
 
+  ShaderEffect {
+    id: fieldFx
+    anchors.fill: parent
+    visible: host.useGpu && host.model === 0
+    property real time: host.shaderTime
+    property real beat: host.beat
+    property real base: host.base
+    property real aspect: width / Math.max(1, height)
+    property color colL: host.colL
+    property color colR: host.colR
+    property color colF: host.colF
+    fragmentShader: Qt.resolvedUrl("shaders/field.frag.qsb")
+    onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "field shader: " + log; host.gpu = false }
+  }
+  ShaderEffect {
+    id: lavaFx
+    anchors.fill: parent
+    visible: host.useGpu && host.model === 1
+    property real thr: 1.0 - (host.breathLevel === null || host.breathLevel === undefined ? 0 : Number(host.breathLevel) * 0.25)
+    property real aspect: width / Math.max(1, height)
+    property real pad0: 0
+    property real pad1: 0
+    property color colL: host.colL
+    property color colR: host.colR
+    property color colF: host.colF
+    property vector4d b0: Qt.vector4d(0, 0, 0, 0); property vector4d b1: Qt.vector4d(0, 0, 0, 0); property vector4d b2: Qt.vector4d(0, 0, 0, 0)
+    property vector4d b3: Qt.vector4d(0, 0, 0, 0); property vector4d b4: Qt.vector4d(0, 0, 0, 0); property vector4d b5: Qt.vector4d(0, 0, 0, 0)
+    property vector4d b6: Qt.vector4d(0, 0, 0, 0); property vector4d b7: Qt.vector4d(0, 0, 0, 0); property vector4d b8: Qt.vector4d(0, 0, 0, 0)
+    property vector4d b9: Qt.vector4d(0, 0, 0, 0)
+    fragmentShader: Qt.resolvedUrl("shaders/lava.frag.qsb")
+    onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "lava shader: " + log; host.gpu = false }
+    function setBlobs(bl) {
+      var q = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9]
+      for (var i = 0; i < 10 && i < bl.length; i++) {
+        var b = bl[i], vv = Qt.vector4d(b.x, b.y, b.r, b.T)
+        if (i === 0) b0 = vv; else if (i === 1) b1 = vv; else if (i === 2) b2 = vv; else if (i === 3) b3 = vv; else if (i === 4) b4 = vv
+        else if (i === 5) b5 = vv; else if (i === 6) b6 = vv; else if (i === 7) b7 = vv; else if (i === 8) b8 = vv; else b9 = vv
+      }
+    }
+  }
+  function gpuFrame(dt) {
+    host.paints++
+    if (V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) V.useOwnBuffer(host.bw, host.bh)
+    if (host.model === 0) { V.tickFlash(dt); host.shaderTime += dt }
+    else lavaFx.setBlobs(V.stepLavaOnly(dt))
+  }
+
   Image {
     id: im
-    visible: host.painter === "bmp"
-    width: host.bw
-    height: host.bh
+    visible: !host.useGpu && host.painter === "bmp"
+    anchors.fill: parent
     smooth: true
     mipmap: false
     cache: false
     asynchronous: false
     fillMode: Image.Stretch
-    transform: Scale { xScale: host.width / Math.max(1, im.width); yScale: host.height / Math.max(1, im.height) }
     property bool ready: false
     onStatusChanged: if (status === Image.Error) { host.lastError = "Image decode failed — falling back to rects"; host.painter = "rects" }
   }
@@ -65,7 +113,7 @@ Item {
 
   Canvas {
     id: cv
-    visible: host.painter !== "bmp"
+    visible: !host.useGpu && host.painter !== "bmp"
     width: host.bw
     height: host.bh
     smooth: true
@@ -105,10 +153,10 @@ Item {
     onTriggered: {
       var now = Date.now(); var dt = cv.lastMs ? Math.min(0.1, (now - cv.lastMs) / 1000) : 1 / host.fps; cv.lastMs = now
       cv.t += dt; host.ticks++
-      if (host.painter === "bmp") host.paintBmp(); else cv.requestPaint()
+      if (host.useGpu) host.gpuFrame(dt); else if (host.painter === "bmp") host.paintBmp(); else cv.requestPaint()
     }
   }
   onPainterChanged: { cv.img = null; im.ready = false }
   onRunningChanged: if (!running) cv.lastMs = 0
-  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback, imageStatus: im.status } }
+  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback, imageStatus: im.status, gpu: useGpu, fieldShader: fieldFx.status, lavaShader: lavaFx.status } }
 }

@@ -155,6 +155,9 @@ function toBmpBase64() {
   return bytesToB64(bmpBytes);
 }
 function bufferSize() { return [FW, FH] }
+// GPU path: blob physics only; the fragment shader draws the field.
+function stepLavaOnly(dt) { hitFlash *= Math.pow(0.02, dt); stepLava(dt); return blobs; }
+function tickFlash(dt) { hitFlash *= Math.pow(0.02, dt); }
 function probe() { return d ? [d[0] | 0, d[1] | 0, d[2] | 0, d[3] | 0] : null }
 function useOwnBuffer(w, h) { FW = w; FH = h; d = new Array(w * h * 4); for (var i = 0; i < d.length; i++) d[i] = 0; img = { width: w, height: h, data: d }; resetVis(); }
 
