@@ -32,9 +32,12 @@ card with that command if it's missing. `pw-cat` ships with PipeWire.
 The visual runs fullscreen on every monitor; any key or mouse movement closes it.
 
 - Panel → **Screensaver**, or `omarchy-shell undertone screensaver`
-- Idle trigger: panel → *idle → 2/5/10 min* (its own timer, independent of Omarchy's)
-- To use it instead of the ASCII one: `omarchy toggle screensaver` (turns Omarchy's off;
-  the lock screen is unaffected) and bind Super+Esc:
+- Panel → **System screensaver: Undertone** makes it *the* screensaver: it fires at
+  Omarchy's own idle time (Style > Idle, `idle.screensaver` in shell.json) and switches
+  the ASCII saver off (`screensaver-off` toggle flag). Click again to hand back to Omarchy.
+  Also: `omarchy-shell undertone systemsaver on|off`.
+- Or leave that off and use its own timer (*or own timer → 2/5/10 min*).
+- Super+Esc still forces Omarchy's ASCII one; to summon Undertone instead, bind:
 
       bindd = SUPER, Escape, Screensaver, exec, omarchy-shell undertone screensaver
 

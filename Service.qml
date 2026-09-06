@@ -48,7 +48,15 @@ Item {
   property var nature: []
   readonly property bool windowOpen: win.visible
   property int visModel: 0               // 0 field · 1 lava · 2 flow
-  property int screensaverAfter: 0       // seconds idle before the fullscreen visual; 0 = off
+  property int screensaverAfter: 0       // manual idle seconds; 0 = off (used when systemSaver is false)
+  property bool systemSaver: false       // true: Undertone IS the screensaver — fires on Omarchy's own idle timing
+  readonly property int omarchySaverSeconds: {
+    var v = shell && shell.shellConfig && shell.shellConfig.idle ? shell.shellConfig.idle.screensaver : undefined
+    var n = Number(v); return (isFinite(n) && n > 0) ? Math.round(n) : 150
+  }
+  readonly property int idleSeconds: systemSaver ? omarchySaverSeconds : screensaverAfter
+  readonly property string stateFile: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/undertone.json"
+  readonly property string toggleFlag: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/toggles/screensaver-off"
   readonly property bool saverOpen: saverLoader.active
   signal hit(real amp)
 
@@ -125,6 +133,7 @@ Item {
     function playpause(): void { root.togglePlay() }
     function scene(name: string): void { root.setScene(name) }
     function screensaver(): void { root.openSaver() }
+    function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var m = { field: 0, lava: 1, flow: 2 }[String(model).toLowerCase()]; if (m !== undefined) root.visModel = m }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
@@ -158,11 +167,46 @@ Item {
   function closeSaver() { saverLoader.active = false }
 
   IdleMonitor {
-    enabled: root.screensaverAfter > 0
-    timeout: root.screensaverAfter
+    enabled: root.idleSeconds > 0
+    timeout: root.idleSeconds
     respectInhibitors: true
-    onIsIdleChanged: if (isIdle && root.screensaverAfter > 0) root.openSaver()
+    onIsIdleChanged: if (isIdle && root.idleSeconds > 0) root.openSaver()
   }
+
+  // ---- persistence + the Omarchy screensaver-off flag
+  FileView {
+    id: stateView
+    path: root.stateFile
+    onLoaded: {
+      try {
+        var o = JSON.parse(text())
+        if ("visModel" in o) root.visModel = o.visModel | 0
+        if ("screensaverAfter" in o) root.screensaverAfter = o.screensaverAfter | 0
+        if ("systemSaver" in o) root.systemSaver = o.systemSaver === true
+      } catch (e) {}
+      root.stateLoaded = true
+    }
+    onLoadFailed: root.stateLoaded = true
+  }
+  property bool stateLoaded: false
+  Process { id: stateWriter }
+  function saveState() {
+    if (!stateLoaded) return
+    var j = JSON.stringify({ visModel: visModel, screensaverAfter: screensaverAfter, systemSaver: systemSaver })
+    stateWriter.command = ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf '%s\n' \"$2\" > \"$1\"", "_", stateFile, j]
+    stateWriter.running = true
+  }
+  Process { id: flagWriter }
+  function setSystemSaver(on) {
+    root.systemSaver = on
+    // on: create the flag so Omarchy's ASCII saver stays quiet; off: remove it so Omarchy's comes back
+    flagWriter.command = on ? ["bash", "-c", "mkdir -p \"$(dirname \"$1\")\" && touch \"$1\"", "_", toggleFlag]
+                            : ["rm", "-f", toggleFlag]
+    flagWriter.running = true
+  }
+  onVisModelChanged: saveState()
+  onScreensaverAfterChanged: saveState()
+  onSystemSaverChanged: saveState()
 
   Loader {
     id: saverLoader
@@ -278,11 +322,21 @@ Item {
           }
           Item { Layout.fillWidth: true }
           Button { text: "Screensaver"; tooltipText: "Fullscreen on every monitor; any key or mouse movement closes it"; onClicked: root.openSaver() }
-          Text { text: "idle →"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+        }
+        RowLayout {
+          Layout.fillWidth: true; spacing: Style.space(8)
+          Button {
+            text: root.systemSaver ? "System screensaver: Undertone" : "System screensaver: Omarchy ASCII"
+            selected: root.systemSaver
+            tooltipText: "On: Undertone takes over at Omarchy's idle time (" + root.omarchySaverSeconds + " s, from Style > Idle) and the ASCII saver is switched off. Off: restores Omarchy's."
+            onClicked: root.setSystemSaver(!root.systemSaver)
+          }
+          Text { visible: !root.systemSaver; text: "or own timer →"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
           Repeater {
-            model: [0, 120, 300, 600]
+            model: root.systemSaver ? [] : [0, 120, 300, 600]
             delegate: Button { required property var modelData; text: modelData === 0 ? "Off" : (modelData / 60) + " min"; selected: root.screensaverAfter === modelData; onClicked: root.screensaverAfter = modelData }
           }
+          Text { visible: root.systemSaver; text: "fires after " + root.omarchySaverSeconds + " s idle · lock unchanged"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
         }
 
         Text {
