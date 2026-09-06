@@ -157,7 +157,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.5.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.5.2", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -269,7 +269,7 @@ Item {
           beat: root.beat; base: root.base
           colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
+            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
             Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
           bufferWidth: 320
           fps: 30
@@ -354,7 +354,7 @@ Item {
             beat: root.beat; base: root.base
             colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
+            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum); panelVisual.setModeAmps(root.modeAmps) } function onPlateMsgChanged() { if (root.plateMsg) panelVisual.setPlate(root.plateMsg) } }
           Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
             running: win.visible && !root.saverOpen
           }
