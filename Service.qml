@@ -48,6 +48,7 @@ Item {
   property var nature: []
   property string om: "off"
   property string omSource: "off"
+  property bool omtune: false
   property string omDir: ""
   property real omlvl: 0.5
   readonly property bool windowOpen: win.visible
@@ -104,6 +105,7 @@ Item {
     if ("om" in s) root.om = String(s.om)
     if ("omlvl" in s) root.omlvl = Number(s.omlvl)
     if ("omSource" in s) root.omSource = String(s.omSource)
+    if ("omtune" in s) root.omtune = Number(s.omtune) > 0
     if ("omDir" in s) root.omDir = String(s.omDir)
   }
 
@@ -182,7 +184,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.6.7", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.8", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -322,6 +324,7 @@ Item {
 
   // ---- control panel
   FloatingWindow {
+    // (scrollbar is declared after the Flickable below)
     id: win
     title: "Undertone"
     visible: false
@@ -331,11 +334,16 @@ Item {
     minimumSize: Qt.size(560, 480)
 
     Flickable {
+      id: flick
       anchors.fill: parent
       anchors.margins: Style.space(18)
+      anchors.rightMargin: Style.space(30)
       contentWidth: width
       contentHeight: col.implicitHeight
       clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      // wheel anywhere in the panel scrolls; sliders only react to the wheel with Ctrl held
+      MouseArea { anchors.fill: parent; z: -1; acceptedButtons: Qt.NoButton; onWheel: function(w) { flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, flick.contentY - w.angleDelta.y)); w.accepted = true } }
 
       ColumnLayout {
         id: col
@@ -502,7 +510,7 @@ Item {
             onMoved: function(v) { root.beat = v; root.setLive({ beat: Math.round(v * 100) / 100 }) }
             onReleased: function(v) { root.set({ beat: Math.round(v * 100) / 100 }) }
             // wheel: ±0.1 Hz; with Shift ±1 Hz
-            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 1 : 0.1); var nb = Math.max(0.5, Math.min(50, Math.round((root.beat + d) * 100) / 100)); root.set({ beat: nb }); w.accepted = true } } }
+            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { if (!(w.modifiers & Qt.ControlModifier)) { w.accepted = false; return } var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 1 : 0.1); var nb = Math.max(0.5, Math.min(50, Math.round((root.beat + d) * 100) / 100)); root.set({ beat: nb }); w.accepted = true } } }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
@@ -511,7 +519,7 @@ Item {
             onMoved: function(p) { var hz = Math.round(root.posToHz(p) * 10) / 10; root.base = hz; root.setLive({ base: hz }) }
             onReleased: function(p) { root.set({ base: Math.round(root.posToHz(p) * 10) / 10 }) }
             // wheel: ±1 Hz; with Shift ±10 Hz
-            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 10 : 1); var nb = Math.max(40, Math.min(800, Math.round((root.base + d) * 10) / 10)); root.set({ base: nb }); w.accepted = true } } }
+            MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(w) { if (!(w.modifiers & Qt.ControlModifier)) { w.accepted = false; return } var d = (w.angleDelta.y > 0 ? 1 : -1) * (w.modifiers & Qt.ShiftModifier ? 10 : 1); var nb = Math.max(40, Math.min(800, Math.round((root.base + d) * 10) / 10)); root.set({ base: nb }); w.accepted = true } } }
         }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(10)
@@ -576,6 +584,7 @@ Item {
           Text { Layout.fillWidth: true; wrapMode: Text.Wrap
                  text: "Source: " + root.omSource + ".  Drop your own sung Om as om_male.* / om_female.* (wav, or mp3 with ffmpeg) in " + root.omDir + " — it is pitch-matched to Sa and looped; the synth is the fallback."
                  color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Button { text: root.omtune ? "Tuned to Sa" : "As recorded"; selected: root.omtune; tooltipText: "As recorded plays your clip untouched (recommended). Tuned resamples it onto the drone's Sa — this also changes its speed."; onClicked: root.set({ omtune: root.omtune ? 0 : 1 }) }
           Button { text: "Open Om folder"; onClicked: Qt.openUrlExternally("file://" + root.omDir) }
         }
 
@@ -671,6 +680,29 @@ Item {
           }
           Button { text: "Open Ground Control on the web"; onClicked: Qt.openUrlExternally(root.webUrl) }
         }
+      }
+    }
+    // vertical scrollbar: track on the right, thumb sized to the visible fraction, draggable
+    Rectangle {
+      id: sbTrack
+      anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+      anchors.margins: Style.space(8); anchors.rightMargin: Style.space(10)
+      width: Style.space(8); radius: width / 2
+      color: Qt.rgba(1, 1, 1, 0.06); visible: flick.contentHeight > flick.height
+      Rectangle {
+        id: sbThumb
+        width: parent.width; radius: width / 2
+        height: Math.max(Style.space(30), parent.height * flick.height / Math.max(1, flick.contentHeight))
+        y: (parent.height - height) * (flick.contentY / Math.max(1, flick.contentHeight - flick.height))
+        color: sbArea.pressed || sbArea.containsMouse ? Color.accent : Qt.rgba(1, 1, 1, 0.28)
+        Behavior on color { ColorAnimation { duration: 120 } }
+      }
+      MouseArea {
+        id: sbArea
+        anchors.fill: parent; hoverEnabled: true
+        property real grabOffset: 0
+        onPressed: function(m) { grabOffset = (m.y >= sbThumb.y && m.y <= sbThumb.y + sbThumb.height) ? m.y - sbThumb.y : sbThumb.height / 2; positionChanged(m) }
+        onPositionChanged: function(m) { if (!pressed) return; var frac = Math.max(0, Math.min(1, (m.y - grabOffset) / Math.max(1, sbTrack.height - sbThumb.height))); flick.contentY = frac * (flick.contentHeight - flick.height) }
       }
     }
   }

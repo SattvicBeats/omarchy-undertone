@@ -83,15 +83,19 @@ def dominant_f0(x, sr=SR):
             if X[kk - 2:kk + 3].max() > 0.3 * peak: fpk = cand
     return float(fpk)
 
-def prepare_om(path, target_f0):
-    """Load a sung Om, resample so its fundamental sits on target_f0 (harmony with Sa), return mono float32 + f0s."""
+def prepare_om(path, target_f0, tune=False):
+    """Load a sung Om. Played as recorded by default; with tune=True it is resampled so its fundamental
+    sits on target_f0 (this also changes speed, which most real chants do not survive)."""
     data, err = load_clip(path)
     if data is None: return None, None, err
     mono = (data[:, 0] + data[:, 1]) * 0.5
     f0 = dominant_f0(mono)
-    ratio = target_f0 / max(30.0, f0)                          # >1 = pitch up (shorter)
-    n2 = int(len(mono) / ratio)
-    x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
+    if tune:
+        ratio = target_f0 / max(30.0, f0)
+        n2 = int(len(mono) / ratio)
+        x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
+    else:
+        x = mono.astype(np.float32)
     x = x / (np.abs(x).max() + 1e-6)
     if os.environ.get("UNDERTONE_OM_HOLD") == "1" and len(x) < 6.5 * SR: x = sustain_om(x, f0=target_f0)   # opt-in only
     return x, f0, None
@@ -192,7 +196,7 @@ def load_clip(path):
 class Engine:
     def __init__(self):
         self.S = dict(beat=10.0, base=196.0, vol=.35, drone=.5, rhythm="Silent", breath="No pacer",
-                      noise="Off", nlvl=.4, nature=[], timer=0, scene=None, om="off", omlvl=.5)
+                      noise="Off", nlvl=.4, nature=[], timer=0, scene=None, om="off", omlvl=.5, omtune=0)
         self.on = False
         self.t0 = 0            # absolute sample counter while on
         self.timer_end = 0     # absolute sample when timer stops
@@ -230,7 +234,7 @@ class Engine:
     # -------------------------------------------------- state changes
     def apply(self, d):
         with self.lock:
-            for k in ("beat", "base", "vol", "drone", "nlvl", "timer", "omlvl"):
+            for k in ("beat", "base", "vol", "drone", "nlvl", "timer", "omlvl", "omtune"):
                 if k in d and d[k] is not None: self.S[k] = float(d[k])
             if "om" in d and d["om"] in ("off", "male", "female"): self.S["om"] = d["om"]
             for k in ("rhythm", "breath", "noise"):
@@ -304,7 +308,7 @@ class Engine:
                 "scene": self.S["scene"], "rhythm": self.S["rhythm"], "breath": self.S["breath"],
                 "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
                 "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "om": self.S["om"], "omlvl": self.S["omlvl"],
-                "omSource": ("sample %s (f0 %.0f Hz → %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"], self.om_smp["target"])) if self.om_smp else ("synth" if self.S["om"] != "off" else "off"),
+                "omSource": ("sample %s (as recorded, f0 ≈ %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"]) if not self.S["omtune"] else "sample %s (tuned %.0f → %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"], self.om_smp["target"])) if self.om_smp else ("synth" if self.S["om"] != "off" else "off"), "omtune": self.S["omtune"],
                 "omDir": OM_DIR, "clips": self.clip_status(), "clipDir": CLIP_DIR}
 
     # -------------------------------------------------- analysis (what the visuals listen to)
@@ -525,12 +529,12 @@ class Engine:
             f0 = sa
             while f0 > hi_: f0 /= 2.0
             while f0 < lo_: f0 *= 2.0
-            key = (S["om"], round(f0, 1))
+            key = (S["om"], round(f0, 1), int(S["omtune"]))
             if self.om_key != key:
                 self.om_key = key; self.om_smp = None
                 path = find_om_sample(S["om"])
                 if path:
-                    x, sf0, err = prepare_om(path, f0)
+                    x, sf0, err = prepare_om(path, f0, tune=bool(S["omtune"]))
                     if x is not None and len(x) > SR:
                         self.om_smp = dict(x=x, f0=sf0, target=f0, path=path, pos=0)
             if self.om_smp is not None:
