@@ -160,7 +160,7 @@ Item {
   function retrySetup() { root.setupNeeded = false; root.setupMessage = ""; engine.running = true }
 
   function toggleWindow() { if (win.visible) hideWindow(); else showWindow() }
-  function showWindow() { win.visible = true }
+  function showWindow() { if (win.visible) win.visible = false; win.visible = true; win.requestActivate ? 0 : 0 }
   function hideWindow() { win.visible = false }
 
   // CLI / hotkey:  omarchy-shell undertone toggle
@@ -178,7 +178,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.6.2", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.3", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -191,6 +191,7 @@ Item {
     }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3; else if (k === "cymatics") root.visModel = 4; else if (k === "mandala") root.visModel = 5; else if (k === "lissajous") root.visModel = 6; else if (k === "scope") root.visModel = 7; else if (k === "tunnel") root.visModel = 8 }
+    function winfo(): string { return JSON.stringify({ visible: win.visible, width: win.width, height: win.height, x: win.x, y: win.y, screen: win.screen ? String(win.screen.name) : null, colH: Math.round(col.implicitHeight), flowerOk: true }) }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
