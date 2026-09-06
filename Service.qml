@@ -49,7 +49,7 @@ Item {
   readonly property bool windowOpen: win.visible
   property int visModel: 0               // 0 field · 1 lava · 2 flow
   property var saverDiag: null
-  property string painter: "rects"
+  property string painter: "bmp"
   property int screensaverAfter: 0       // manual idle seconds; 0 = off (used when systemSaver is false)
   property bool systemSaver: false       // true: Undertone IS the screensaver — fires on Omarchy's own idle timing
   readonly property int omarchySaverSeconds: {
@@ -136,7 +136,7 @@ Item {
     function scene(name: string): void { root.setScene(name) }
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
-    function diag(): string { return JSON.stringify({ version: "0.3.5", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.3.6", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
     function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2 }
     function status(): string {
@@ -236,7 +236,7 @@ Item {
           beat: root.beat; base: root.base
           colL: Color.accent; colR: Color.urgent; colF: Color.background
           breathLevel: root.breathPhases ? root.breathLevel : null
-          bufferWidth: 240
+          bufferWidth: 320
           fps: 30
         }
         Connections { target: root; function onHit(amp) { saverVisual.pulse(amp) } }

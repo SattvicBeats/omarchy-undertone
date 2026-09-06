@@ -100,7 +100,7 @@ function paintRects(ctx) {
   for (y = 0; y < FH; y++) {
     x0 = 0; last = -1;
     for (x = 0; x < FW; x++, p += 4) {
-      r = (d[p] | 0) & 248; g = (d[p + 1] | 0) & 248; b = (d[p + 2] | 0) & 248; key = (r << 16) | (g << 8) | b;   // 5-bit quantise → longer runs
+      r = (d[p] | 0) & 252; g = (d[p + 1] | 0) & 252; b = (d[p + 2] | 0) & 252; key = (r << 16) | (g << 8) | b;   // 6-bit: invisible, merges a little
       if (key !== last) {
         if (last >= 0) { ctx.fillStyle = "#" + ("000000" + last.toString(16)).slice(-6); ctx.fillRect(x0, y, x - x0, 1); }
         last = key; x0 = x;
@@ -109,6 +109,27 @@ function paintRects(ctx) {
     ctx.fillStyle = "#" + ("000000" + last.toString(16)).slice(-6); ctx.fillRect(x0, y, FW - x0, 1);
   }
 }
+// BMP painter: encode the buffer as a 24-bit bottom-up BMP (binary string) for a
+// data: URL. Header is built once per size; rows are padded to 4 bytes.
+var bmpHead = null, bmpW = 0, bmpH = 0, bmpPad = 0;
+function bmpHeader(w, h) {
+  var pad = (4 - (w * 3) % 4) % 4, rowBytes = w * 3 + pad, size = 54 + rowBytes * h;
+  var b = [], u16 = function (v) { b.push(v & 255, (v >> 8) & 255) }, u32 = function (v) { b.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255) };
+  b.push(66, 77); u32(size); u16(0); u16(0); u32(54);
+  u32(40); u32(w); u32(h); u16(1); u16(24); u32(0); u32(rowBytes * h); u32(2835); u32(2835); u32(0); u32(0);
+  bmpHead = String.fromCharCode.apply(null, b); bmpW = w; bmpH = h; bmpPad = pad;
+}
+function toBmp() {
+  if (bmpW !== FW || bmpH !== FH) bmpHeader(FW, FH);
+  var rows = new Array(FH), padStr = bmpPad ? String.fromCharCode.apply(null, new Array(bmpPad).fill(0)) : "";
+  for (var y = FH - 1; y >= 0; y--) {
+    var p = y * FW * 4, line = new Array(FW * 3), k = 0;
+    for (var x = 0; x < FW; x++, p += 4) { line[k++] = d[p + 2] & 255; line[k++] = d[p + 1] & 255; line[k++] = d[p] & 255; }
+    rows[FH - 1 - y] = String.fromCharCode.apply(null, line) + padStr;
+  }
+  return bmpHead + rows.join("");
+}
+function bufferSize() { return [FW, FH] }
 function probe() { return d ? [d[0] | 0, d[1] | 0, d[2] | 0, d[3] | 0] : null }
 function useOwnBuffer(w, h) { FW = w; FH = h; d = new Array(w * h * 4); for (var i = 0; i < d.length; i++) d[i] = 0; img = { width: w, height: h, data: d }; resetVis(); }
 

@@ -20,11 +20,11 @@ Item {
   property int ticks: 0
   property string lastError: ""
   property bool ctxOk: false
-  property string painter: "rects"     // "imagedata" | "rects"
+  property string painter: "bmp"       // "bmp" (Image from data URL) | "rects" (Canvas fillRect fallback)
   property var probe: null
   property var readback: null
 
-  readonly property int bw: painter === "rects" ? Math.min(bufferWidth, 128) : bufferWidth
+  readonly property int bw: painter === "rects" ? Math.min(bufferWidth, 160) : bufferWidth
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
   function pulse(a) { V.hit(a) }
@@ -39,8 +39,33 @@ Item {
   onBreathLevelChanged: V.setBreath(breathLevel)
   Component.onCompleted: { V.setPalette(colL, colR, colF); V.setState(beat, base, model) }
 
+  Image {
+    id: im
+    visible: host.painter === "bmp"
+    width: host.bw
+    height: host.bh
+    smooth: true
+    mipmap: false
+    cache: false
+    asynchronous: false
+    fillMode: Image.Stretch
+    transform: Scale { xScale: host.width / Math.max(1, im.width); yScale: host.height / Math.max(1, im.height) }
+    property bool ready: false
+    onStatusChanged: if (status === Image.Error) { host.lastError = "Image decode failed — falling back to rects"; host.painter = "rects" }
+  }
+  function paintBmp() {
+    host.paints++
+    try {
+      if (!im.ready || V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) { V.useOwnBuffer(host.bw, host.bh); im.ready = true }
+      V.frame(cv.t, 1 / host.fps)
+      im.source = "data:image/bmp;base64," + Qt.btoa(V.toBmp())
+      if ((host.paints & 31) === 0) host.probe = V.probe()
+    } catch (e) { host.lastError = String(e); host.painter = "rects" }
+  }
+
   Canvas {
     id: cv
+    visible: host.painter !== "bmp"
     width: host.bw
     height: host.bh
     smooth: true
@@ -79,10 +104,11 @@ Item {
     running: host.running && host.visible && host.width > 0
     onTriggered: {
       var now = Date.now(); var dt = cv.lastMs ? Math.min(0.1, (now - cv.lastMs) / 1000) : 1 / host.fps; cv.lastMs = now
-      cv.t += dt; host.ticks++; cv.requestPaint()
+      cv.t += dt; host.ticks++
+      if (host.painter === "bmp") host.paintBmp(); else cv.requestPaint()
     }
   }
-  onPainterChanged: cv.img = null
+  onPainterChanged: { cv.img = null; im.ready = false }
   onRunningChanged: if (!running) cv.lastMs = 0
-  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback } }
+  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback, imageStatus: im.status } }
 }
