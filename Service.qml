@@ -49,6 +49,8 @@ Item {
   property string om: "off"
   property string omSource: "off"
   property bool omtune: false
+  property var omOptions: []
+  function omLabel(k) { var t = String(k).replace(/^om[_-]?/i, "").replace(/[_-]+/g, " ").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : String(k) }
   property string omDir: ""
   property real omlvl: 0.5
   readonly property bool windowOpen: win.visible
@@ -106,6 +108,7 @@ Item {
     if ("omlvl" in s) root.omlvl = Number(s.omlvl)
     if ("omSource" in s) root.omSource = String(s.omSource)
     if ("omtune" in s) root.omtune = Number(s.omtune) > 0
+    if ("omOptions" in s) root.omOptions = s.omOptions || []
     if ("omDir" in s) root.omDir = String(s.omDir)
   }
 
@@ -184,7 +187,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.6.8", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.6.9", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -572,9 +575,13 @@ Item {
         PanelSectionHeader { text: "Om" }
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(8)
-          Repeater {
-            model: ["off", "male", "female"]
-            delegate: Button { required property var modelData; text: modelData === "off" ? "Off" : modelData.charAt(0).toUpperCase() + modelData.slice(1); selected: root.om === modelData; onClicked: root.set({ om: modelData }) }
+          Flow {
+            Layout.fillWidth: true; spacing: Style.space(6)
+            Button { text: "Off"; selected: root.om === "off"; onClicked: root.set({ om: "off" }) }
+            Repeater {
+              model: root.omOptions.length ? root.omOptions : ["male", "female"]
+              delegate: Button { required property var modelData; text: root.omLabel(modelData); selected: root.om === modelData || ("om_" + root.om) === modelData; tooltipText: modelData; onClicked: root.set({ om: modelData }) }
+            }
           }
           Text { text: "level"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
           PanelSlider { Layout.preferredWidth: 160; minimum: 0; maximum: 1; step: 0.01; value: root.omlvl; onMoved: function(v) { root.setLive({ omlvl: v }) }; onReleased: function(v) { root.set({ omlvl: v }) } }
@@ -585,6 +592,7 @@ Item {
                  text: "Source: " + root.omSource + ".  Drop your own sung Om as om_male.* / om_female.* (wav, or mp3 with ffmpeg) in " + root.omDir + " — it is pitch-matched to Sa and looped; the synth is the fallback."
                  color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
           Button { text: root.omtune ? "Tuned to Sa" : "As recorded"; selected: root.omtune; tooltipText: "As recorded plays your clip untouched (recommended). Tuned resamples it onto the drone's Sa — this also changes its speed."; onClicked: root.set({ omtune: root.omtune ? 0 : 1 }) }
+          Button { text: "Rescan"; onClicked: root.set({ om: root.om }) }
           Button { text: "Open Om folder"; onClicked: Qt.openUrlExternally("file://" + root.omDir) }
         }
 

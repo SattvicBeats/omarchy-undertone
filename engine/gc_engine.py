@@ -63,12 +63,17 @@ CLIP_DIR = os.environ.get("UNDERTONE_CLIPS") or os.path.join(os.environ.get("XDG
 CLIP_EXT = (".wav", ".flac", ".mp3", ".ogg", ".opus", ".m4a", ".aiff", ".aif")
 OM_DIR = os.environ.get("UNDERTONE_OM") or os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share"), "undertone", "om")
 
-def find_om_sample(voice):
-    """om_<voice>.<ext> in OM_DIR (or the clips dir as a fallback)."""
-    for d in (OM_DIR, CLIP_DIR):
-        if not os.path.isdir(d): continue
-        for f in sorted(os.listdir(d)):
-            if f.lower().startswith("om_" + voice) and f.lower().endswith(CLIP_EXT): return os.path.join(d, f)
+def om_options():
+    """Every audio file in OM_DIR is an Om option, keyed by its stem (om_male.mp3 → 'om_male')."""
+    if not os.path.isdir(OM_DIR): return []
+    return sorted(os.path.splitext(f)[0] for f in os.listdir(OM_DIR) if f.lower().endswith(CLIP_EXT))
+
+def find_om_sample(key):
+    """Path for an option key; 'male'/'female' are accepted as om_male/om_female."""
+    if key in ("male", "female"): key = "om_" + key
+    if os.path.isdir(OM_DIR):
+        for f in sorted(os.listdir(OM_DIR)):
+            if os.path.splitext(f)[0] == key and f.lower().endswith(CLIP_EXT): return os.path.join(OM_DIR, f)
     return None
 
 def dominant_f0(x, sr=SR):
@@ -236,7 +241,7 @@ class Engine:
         with self.lock:
             for k in ("beat", "base", "vol", "drone", "nlvl", "timer", "omlvl", "omtune"):
                 if k in d and d[k] is not None: self.S[k] = float(d[k])
-            if "om" in d and d["om"] in ("off", "male", "female"): self.S["om"] = d["om"]
+            if "om" in d and isinstance(d["om"], str): self.S["om"] = d["om"] if (d["om"] in ("off", "male", "female") or find_om_sample(d["om"])) else "off"
             for k in ("rhythm", "breath", "noise"):
                 if k in d and d[k] in ({r["name"] for r in DATA["rhythms"]} | {b["name"] for b in DATA["breaths"]} | set(DATA["noises"])):
                     self.S[k] = d[k]
@@ -309,7 +314,7 @@ class Engine:
                 "noise": self.S["noise"], "nature": self.S["nature"], "drone": self.S["drone"],
                 "vol": self.S["vol"], "nlvl": self.S["nlvl"], "timer": self.S["timer"], "om": self.S["om"], "omlvl": self.S["omlvl"],
                 "omSource": ("sample %s (as recorded, f0 ≈ %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"]) if not self.S["omtune"] else "sample %s (tuned %.0f → %.0f Hz)" % (os.path.basename(self.om_smp["path"]), self.om_smp["f0"], self.om_smp["target"])) if self.om_smp else ("synth" if self.S["om"] != "off" else "off"), "omtune": self.S["omtune"],
-                "omDir": OM_DIR, "clips": self.clip_status(), "clipDir": CLIP_DIR}
+                "omDir": OM_DIR, "omOptions": om_options(), "clips": self.clip_status(), "clipDir": CLIP_DIR}
 
     # -------------------------------------------------- analysis (what the visuals listen to)
     def analyse(self, out):
@@ -525,7 +530,8 @@ class Engine:
         om_done = False
         if S["om"] != "off" and S["omlvl"] > 0:
             sa = S["base"]
-            lo_, hi_ = (90.0, 150.0) if S["om"] == "male" else (200.0, 330.0)
+            fem = "female" in S["om"]
+            lo_, hi_ = (200.0, 330.0) if fem else (90.0, 150.0)
             f0 = sa
             while f0 > hi_: f0 /= 2.0
             while f0 < lo_: f0 *= 2.0

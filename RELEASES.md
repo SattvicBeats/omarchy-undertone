@@ -16,6 +16,7 @@ Last version confirmed working on BOMARCHY by the user: **0.6.1** (flower visibl
 | 0.6.6 | v0.6.6 | (see bundle) | Om sustain: phase-coherent grains (whole pitch periods), brightness-transition o/m split, steadiest-window grain choice, level flattening — throb removed (ripple 5 %/2.5 %) | service ✓ · continuity ✓ · sustain ripple ✓ |
 | 0.6.7 | v0.6.7 | (see bundle) | Om plays sample whole; sustain opt-in; gen_om lists voices + chant text | service ✓ · continuity ✓ |
 | 0.6.8 | v0.6.8 | (see bundle) | Om: as-recorded by default (no resample), Tune-to-Sa toggle; wheel scrolls (Ctrl+wheel adjusts), vertical scrollbar | service ✓ · continuity ✓ |
+| 0.6.9 | v0.6.9 | (see bundle) | Om = any files in the om folder, one button each (male/female keys kept) | service ✓ · continuity ✓ · options test ✓ |
 
 ## Rollback
     undertone-release list
