@@ -129,6 +129,31 @@ function toBmp() {
   }
   return bmpHead + rows.join("");
 }
+// Base64 straight from bytes. Qt.btoa UTF-8-encodes first, which mangles bytes >= 0x80.
+var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+var B64T = null;   // 4096-entry table: two bytes' worth of the top 12 bits → 2 chars
+function b64init() { B64T = new Array(4096); for (var i = 0; i < 4096; i++) B64T[i] = B64[i >> 6] + B64[i & 63]; }
+function bytesToB64(a) {
+  if (!B64T) b64init();
+  var out = new Array(Math.ceil(a.length / 3)), n = a.length - (a.length % 3), k = 0, i;
+  for (i = 0; i < n; i += 3) { var v = (a[i] << 16) | (a[i + 1] << 8) | a[i + 2]; out[k++] = B64T[v >> 12] + B64T[v & 4095]; }
+  if (a.length - n === 1) { var v1 = a[i] << 16; out[k++] = B64T[v1 >> 12] + B64[(v1 >> 6) & 63] + "="; }
+  else if (a.length - n === 2) { var v2 = (a[i] << 16) | (a[i + 1] << 8); out[k++] = B64T[v2 >> 12] + B64T[v2 & 4095].slice(0, 1) + "="; }
+  return out.join("");
+}
+var bmpBytes = null;
+function toBmpBase64() {
+  if (bmpW !== FW || bmpH !== FH) bmpHeader(FW, FH);
+  var rowBytes = FW * 3 + bmpPad, total = 54 + rowBytes * FH;
+  if (!bmpBytes || bmpBytes.length !== total) { bmpBytes = new Array(total); for (var z = 0; z < 54; z++) bmpBytes[z] = bmpHead.charCodeAt(z); for (var q = 54; q < total; q++) bmpBytes[q] = 0; }
+  var o = 54;
+  for (var y = FH - 1; y >= 0; y--) {
+    var p = y * FW * 4;
+    for (var x = 0; x < FW; x++, p += 4) { bmpBytes[o++] = d[p + 2] & 255; bmpBytes[o++] = d[p + 1] & 255; bmpBytes[o++] = d[p] & 255; }
+    o += bmpPad;
+  }
+  return bytesToB64(bmpBytes);
+}
 function bufferSize() { return [FW, FH] }
 function probe() { return d ? [d[0] | 0, d[1] | 0, d[2] | 0, d[3] | 0] : null }
 function useOwnBuffer(w, h) { FW = w; FH = h; d = new Array(w * h * 4); for (var i = 0; i < d.length; i++) d[i] = 0; img = { width: w, height: h, data: d }; resetVis(); }

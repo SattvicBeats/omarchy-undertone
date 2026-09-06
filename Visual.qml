@@ -58,7 +58,7 @@ Item {
     try {
       if (!im.ready || V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) { V.useOwnBuffer(host.bw, host.bh); im.ready = true }
       V.frame(cv.t, 1 / host.fps)
-      im.source = "data:image/bmp;base64," + Qt.btoa(V.toBmp())
+      im.source = "data:image/bmp;base64," + V.toBmpBase64()
       if ((host.paints & 31) === 0) host.probe = V.probe()
     } catch (e) { host.lastError = String(e); host.painter = "rects" }
   }
