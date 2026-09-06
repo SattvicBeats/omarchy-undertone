@@ -108,6 +108,11 @@ class Engine:
         self.clips = {}        # name -> dict(data, pos, gain, loop, on, err)
         self.an = {"rms": 0.0, "lo": 0.0, "mid": 0.0, "hi": 0.0}   # smoothed analysis
         self.anst = {"lo": 0.0, "hi": 0.0}                            # filter state
+        self.ring = np.zeros((8192, 2), np.float32)                   # last 171 ms of output for the FFT
+        self.bands = np.zeros(32)                                      # smoothed log-spaced spectrum, 0..1
+        self.peaks = [0.0, 0.0]                                        # measured strongest tone per ear, Hz
+        self.win = np.hanning(8192).astype(np.float32)
+        edges = np.geomspace(40, 16000, 33); self.bandIdx = np.searchsorted(np.fft.rfftfreq(8192, 1 / SR), edges)
         self.lock = threading.Lock()
 
     # -------------------------------------------------- state changes
@@ -189,6 +194,7 @@ class Engine:
 
     # -------------------------------------------------- analysis (what the visuals listen to)
     def analyse(self, out):
+        self.ring = np.roll(self.ring, -len(out), axis=0); self.ring[-len(out):] = out
         m = (out[:, 0] + out[:, 1]) * 0.5
         st = self.anst
         lo, st["lo"] = leaky(m * (1 - .985), .985, st["lo"])          # ~115 Hz one-pole
@@ -199,10 +205,30 @@ class Engine:
         for key, val in (("rms", e(m)), ("lo", e(lo)), ("mid", e(mid)), ("hi", e(hi))):
             a[key] += (val - a[key]) * (k if val > a[key] else k * .5)   # fast attack, slower release
 
+    def spectrum(self):
+        """FFT of the last 171 ms: 32 log bands (40 Hz-16 kHz) and the strongest tone in each ear."""
+        r = self.ring
+        for ch in (0, 1):
+            X = np.abs(np.fft.rfft(r[:, ch] * self.win))
+            if ch == 0: XL = X
+            else: XR = X
+            k = int(np.argmax(X[8:])) + 8                              # skip DC/sub-40 Hz
+            if X[k] > 1.0 and 0 < k < len(X) - 1:                       # parabolic interpolation → sub-bin frequency
+                a, b, c = np.log(X[k - 1] + 1e-9), np.log(X[k] + 1e-9), np.log(X[k + 1] + 1e-9)
+                d = 0.5 * (a - c) / (a - 2 * b + c) if (a - 2 * b + c) != 0 else 0.0
+                self.peaks[ch] = float((k + d) * SR / 8192)
+            else:
+                self.peaks[ch] = 0.0
+        M = (XL + XR) * 0.5
+        bands = np.array([M[self.bandIdx[i]:max(self.bandIdx[i] + 1, self.bandIdx[i + 1])].max() for i in range(32)])
+        bands = np.clip((np.log10(bands + 1e-3) + 1.0) / 3.2, 0, 1)      # ~ -20 dB .. +44 dB window
+        self.bands += (bands - self.bands) * np.where(bands > self.bands, .5, .18)
+
     def analysis(self):
         a = self.an
-        bp = (self.ph[1] - self.ph[0]) % (2 * np.pi)                     # actual L/R phase difference = the beat the ear hears
-        return {"a": [round(min(1.0, a["rms"] * 2.2), 3), round(min(1.0, a["lo"] * 4.0), 3), round(min(1.0, a["mid"] * 3.0), 3), round(min(1.0, a["hi"] * 6.0), 3), round(float(bp), 3), 1 if self.on else 0]}
+        return {"a": [round(min(1.0, a["rms"] * 2.2), 3), round(min(1.0, a["lo"] * 4.0), 3), round(min(1.0, a["mid"] * 3.0), 3), round(min(1.0, a["hi"] * 6.0), 3),
+                      round(self.peaks[0], 2), round(self.peaks[1], 2), 1 if self.on else 0],
+                "s": [int(v * 100) for v in self.bands]}
 
     # -------------------------------------------------- synthesis
     def block(self):
@@ -371,7 +397,7 @@ def main():
         with wave.open(a.out, "wb") as w:
             w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
             w.writeframes((pcm * 32767).astype("<i2").tobytes())
-        an = eng.analysis()["a"]
+        eng.spectrum(); an = eng.analysis()["a"]
         print(json.dumps({"ok": True, "seconds": a.seconds, "cpu_seconds": round(cpu, 3), "analysis_rms_lo_mid_hi_phase": an[:5],
                           "rms_L": float(np.sqrt((pcm[:, 0] ** 2).mean())), "rms_R": float(np.sqrt((pcm[:, 1] ** 2).mean())),
                           "peak": float(np.abs(pcm).max()), "nan": bool(np.isnan(pcm).any())}))
@@ -414,7 +440,8 @@ def main():
             if eng.hits:
                 a = max(eng.hits); eng.hits = []; emit({"hit": round(a, 2)})
             blk += 1
-            if blk % 2 == 0: emit(eng.analysis())          # ~23 Hz
+            if blk % 2 == 0:
+                eng.spectrum(); emit(eng.analysis())          # ~23 Hz
         else:
             if proc is not None:
                 try: proc.stdin.close()

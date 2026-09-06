@@ -29,11 +29,18 @@ card with that command if it's missing. `pw-cat` ships with PipeWire.
 
 ## Visuals listen to the sound
 
-The engine measures the mix every 21 ms — loudness, low/mid/high band energy, the real
-left/right phase difference (the beat you actually hear) and the taal hits — and streams
-it to the visuals ~23×/s. Field drift is locked to the beat phase and brightness to
-loudness; Lava's plate heats with bass; Flow's speed follows mid/high energy; hits kick
-Lava and Flow. Silence → still. Clips you add drive them the same way.
+Nothing in the visuals is taken from the settings. The engine FFTs its own output
+(8192-sample window, ~23×/s) and streams what it measures: loudness, low/mid/high energy,
+a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the taal hits.
+
+- **Field** — ring geometry from the two measured ear tones; drift is the integral of
+  their measured difference, i.e. the beat as heard; brightness = loudness
+- **Lava** — plate heat from bass energy, brightness from loudness, hits shove the blobs
+- **Flow** — particle speed from mid/high energy, hits accelerate
+- **Spectrum** — 32 bars with peak hold, left-tone colour low, right-tone colour high
+
+Silence → still. Clips you add drive them exactly the same way, because they are measured
+from the same output.
 
 ## Clips
 

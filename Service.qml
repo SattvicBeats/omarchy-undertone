@@ -47,7 +47,7 @@ Item {
   property string noise: "Off"
   property var nature: []
   readonly property bool windowOpen: win.visible
-  property int visModel: 0               // 0 field · 1 lava · 2 flow
+  property int visModel: 0               // 0 field · 1 lava · 2 flow · 3 spectrum
   property var saverDiag: null
   property string painter: "bmp"
   property string palette: "Station"     // a name from tables.palettes, or "Omarchy" to follow the theme
@@ -68,12 +68,13 @@ Item {
   readonly property string toggleFlag: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/toggles/screensaver-off"
   readonly property bool saverOpen: saverLoader.active
   signal hit(real amp)
-  property var audio: [0, 0, 0, 0, 0, 0]
+  property var audio: [0, 0, 0, 0, 0, 0, 0]
+  property var spectrum: []
   property var clips: []
   property string clipDir: ""
 
   function applyStatus(s) {
-    if ("a" in s) { root.audio = s.a; return }
+    if ("a" in s) { if ("s" in s) root.spectrum = s.s; root.audio = s.a; return }
     if ("hit" in s) { root.hit(Number(s.hit) || 0); return }
     if ("clips" in s) root.clips = s.clips || []
     if ("clipDir" in s) root.clipDir = String(s.clipDir)
@@ -153,11 +154,11 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.4.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.4.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function systemsaver(on: string): void { root.setSystemSaver(String(on) === "on" || String(on) === "true" || String(on) === "1") }
-    function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2 }
+    function visual(model: string): void { var k = String(model).toLowerCase(); if (k === "field") root.visModel = 0; else if (k === "lava") root.visModel = 1; else if (k === "flow") root.visModel = 2; else if (k === "spectrum") root.visModel = 3 }
     function status(): string {
       return JSON.stringify({ playing: root.playing, timerLeft: root.timerLeft, beat: root.beat, base: root.base, scene: root.scene, rhythm: root.rhythm })
     }
@@ -257,7 +258,7 @@ Item {
           beat: root.beat; base: root.base
           colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
           breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio) } }
+            Connections { target: root; function onAudioChanged() { panelVisual.setAudio(root.audio, root.spectrum) } }
           bufferWidth: 320
           fps: 30
         }
@@ -341,7 +342,7 @@ Item {
             beat: root.beat; base: root.base
             colL: root.pal.L; colR: root.pal.R; colF: root.pal.F
             breathLevel: root.breathPhases ? root.breathLevel : null
-            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio) } }
+            Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum) } }
             running: win.visible && !root.saverOpen
           }
           Connections { target: root; function onHit(amp) { panelVisual.pulse(amp) } }
@@ -349,7 +350,7 @@ Item {
         RowLayout {
           Layout.fillWidth: true; spacing: Style.space(6)
           Repeater {
-            model: ["Field", "Lava", "Flow"]
+            model: ["Field", "Lava", "Flow", "Spectrum"]
             delegate: Button { required property var modelData; required property int index; text: modelData; selected: root.visModel === index; onClicked: root.visModel = index }
           }
           Item { Layout.fillWidth: true }

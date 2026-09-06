@@ -7,8 +7,8 @@ var img = null, d = null;             // {width,height,data} provided by host (C
 var RGB = { L: [242, 192, 99], R: [127, 183, 201], bg2: [13, 19, 34] };
 var S = { beat: 10, base: 196, vis: 0 };
 var blobs = [], parts = null, perm = [], hitFlash = 0, breath = null;
-var A = { energy: 0, lo: 0, mid: 0, hi: 0, phase: 0, on: 0 };   // live audio analysis from the engine
-function setAudio(energy, lo, mid, hi, phase, on) { A.energy = +energy || 0; A.lo = +lo || 0; A.mid = +mid || 0; A.hi = +hi || 0; A.phase = +phase || 0; A.on = on ? 1 : 0; }
+var A = { energy: 0, lo: 0, mid: 0, hi: 0, fL: 0, fR: 0, phase: 0, on: 0, bands: [] };   // live audio analysis from the engine
+function setAudio(energy, lo, mid, hi, fL, fR, on, phase, bands) { A.energy = +energy || 0; A.lo = +lo || 0; A.mid = +mid || 0; A.hi = +hi || 0; if (fL > 0) A.fL = +fL; if (fR > 0) A.fR = +fR; A.phase = +phase || 0; A.on = on ? 1 : 0; A.bands = bands || A.bands; }
 
 function hex2rgb(h) { h = String(h).replace("#", ""); if (h.length === 8) h = h.slice(0, 6); var n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function setPalette(L, R, F) { RGB.L = hex2rgb(L); RGB.R = hex2rgb(R); RGB.bg2 = hex2rgb(F); }
@@ -36,7 +36,7 @@ function put(p, B, Lc, Rc, a, c, g) {
 
 // --- model 0: interference field ---
 function drawField(t) {
-  var drift = A.phase + t * 0.15, loud = 0.25 + 0.75 * A.energy, kL = 0.09 * Math.pow(S.base / 196, .35), kR = kL * (1 + S.beat / S.base * 40);
+  var drift = A.phase + t * 0.05, loud = 0.25 + 0.75 * A.energy, fL = Math.max(20, A.fL || S.base), fR = Math.max(20, A.fR || fL), kL = 0.09 * Math.pow(fL / 196, .35), kR = 0.09 * Math.pow(fR / 196, .35) * (1 + Math.max(0, fR - fL) / fL * 40);
   var sx = FW * 0.32, sy = FH / 2, p = 0, B = RGB.bg2, Lc = RGB.L, Rc = RGB.R;
   for (var y = 0; y < FH; y++) for (var x = 0; x < FW; x++, p += 4) {
     var dx1 = x - sx, dx2 = x - (FW - sx), dy = y - sy, r1 = Math.sqrt(dx1 * dx1 + dy * dy), r2 = Math.sqrt(dx2 * dx2 + dy * dy);

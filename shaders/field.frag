@@ -6,8 +6,8 @@ layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
     float time;      // seconds
-    float beat;      // Hz
-    float base;      // Hz
+    float fL;        // Hz, measured strongest tone, left ear
+    float fR;        // Hz, right ear
     float aspect;    // width / height
     float energy;    // 0..1 loudness
     float beatPhase; // radians, the real L/R phase difference
@@ -24,9 +24,9 @@ void main() {
     float x = qt_TexCoord0.x * FW;
     float y = qt_TexCoord0.y * FH;
     // the field breathes with the beat you actually hear; idles slowly when silent
-    float drift = u.beatPhase + u.time * 0.15;
-    float kL = 0.09 * pow(u.base / 196.0, 0.35);
-    float kR = kL * (1.0 + u.beat / u.base * 40.0);
+    float drift = u.beatPhase + u.time * 0.05;
+    float kL = 0.09 * pow(max(u.fL, 20.0) / 196.0, 0.35);
+    float kR = 0.09 * pow(max(u.fR, 20.0) / 196.0, 0.35) * (1.0 + max(0.0, u.fR - u.fL) / max(u.fL, 20.0) * 40.0);
     float sx = FW * 0.32, sy = FH * 0.5;
     float r1 = length(vec2(x - sx, y - sy));
     float r2 = length(vec2(x - (FW - sx), y - sy));

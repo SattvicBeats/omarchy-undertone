@@ -22,16 +22,27 @@ Item {
   property bool ctxOk: false
   property string painter: "bmp"       // JS path for Flow / fallback: "bmp" (Image from data URL) | "rects" (Canvas fillRect)
   property bool gpu: true              // field + lava as fragment shaders at native resolution
-  readonly property bool useGpu: gpu && model !== 2
+  readonly property bool useGpu: gpu && (model === 0 || model === 1)
   property real shaderTime: 0
   // live analysis from the engine (Service pushes these ~23x/s)
   property real energy: 0
   property real lo: 0
   property real mid: 0
   property real hi: 0
-  property real beatPhase: 0
+  property real fL: 0                // measured strongest tone per ear (Hz); keep last value through silence
+  property real fR: 0
+  property real beatPhase: 0         // integral of the measured (fR - fL) — the beat as heard
   property bool audioOn: false
-  function setAudio(a) { energy = a[0]; lo = a[1]; mid = a[2]; hi = a[3]; beatPhase = a[4]; audioOn = a[5] === 1; V.setAudio(a[0], a[1], a[2], a[3], a[4], a[5]) }
+  property var bands: []             // 32 log-spaced spectrum bands, 0..100
+  property real lastAudioMs: 0
+  function setAudio(a, s) {
+    var now = Date.now(); var dt = lastAudioMs ? Math.min(0.2, (now - lastAudioMs) / 1000) : 0; lastAudioMs = now
+    energy = a[0]; lo = a[1]; mid = a[2]; hi = a[3]; audioOn = a[6] === 1
+    if (a[4] > 0) fL = a[4]; if (a[5] > 0) fR = a[5]
+    if (audioOn && a[4] > 0 && a[5] > 0) beatPhase = (beatPhase + 2 * Math.PI * (a[5] - a[4]) * dt) % (2 * Math.PI)
+    if (s) bands = s
+    V.setAudio(a[0], a[1], a[2], a[3], a[4], a[5], a[6], beatPhase, s)
+  }
   property var probe: null
   property var readback: null
 
@@ -55,8 +66,8 @@ Item {
     anchors.fill: parent
     visible: host.useGpu && host.model === 0
     property real time: host.shaderTime
-    property real beat: host.beat
-    property real base: host.base
+    property real fL: host.fL
+    property real fR: host.fR
     property real aspect: width / Math.max(1, height)
     property real energy: host.energy
     property real beatPhase: host.beatPhase
@@ -101,9 +112,40 @@ Item {
     else lavaFx.setBlobs(V.stepLavaOnly(dt))
   }
 
+  // model 3: Spectrum — 32 log bands, left-tone colour low, right-tone colour high, peak hold
+  Item {
+    id: spec
+    anchors.fill: parent
+    visible: host.model === 3
+    property var hold: []
+    Row {
+      anchors.fill: parent
+      anchors.margins: parent.height * 0.05
+      spacing: width * 0.006
+      Repeater {
+        model: 32
+        delegate: Item {
+          required property int index
+          width: (parent.width - parent.spacing * 31) / 32; height: parent.height
+          property real val: (host.bands[index] || 0) / 100
+          property real pk: spec.hold[index] || 0
+          Rectangle {
+            anchors.bottom: parent.bottom; width: parent.width; height: Math.max(2, parent.height * val)
+            radius: width * 0.25
+            gradient: Gradient { GradientStop { position: 0; color: Qt.lighter(host.colR, 1.1) } GradientStop { position: 1; color: host.colL } }
+            opacity: 0.35 + 0.65 * val
+          }
+          Rectangle { width: parent.width; height: 2; y: parent.height * (1 - pk) - 2; color: host.colF === "#000000" ? "#ffffff" : Qt.lighter(host.colL, 1.4); opacity: pk > 0.02 ? 0.9 : 0 }
+        }
+      }
+    }
+    Timer { interval: 50; repeat: true; running: spec.visible
+      onTriggered: { var h = spec.hold.slice(); for (var i = 0; i < 32; i++) { var v = (host.bands[i] || 0) / 100; h[i] = Math.max(v, (h[i] || 0) - 0.012) } spec.hold = h } }
+  }
+
   Image {
     id: im
-    visible: !host.useGpu && host.painter === "bmp"
+    visible: !host.useGpu && host.painter === "bmp" && host.model !== 3
     anchors.fill: parent
     smooth: true
     mipmap: false
@@ -125,7 +167,7 @@ Item {
 
   Canvas {
     id: cv
-    visible: !host.useGpu && host.painter !== "bmp"
+    visible: !host.useGpu && host.painter !== "bmp" && host.model !== 3
     width: host.bw
     height: host.bh
     smooth: true
@@ -165,6 +207,7 @@ Item {
     onTriggered: {
       var now = Date.now(); var dt = cv.lastMs ? Math.min(0.1, (now - cv.lastMs) / 1000) : 1 / host.fps; cv.lastMs = now
       cv.t += dt; host.ticks++
+      if (host.model === 3) return
       if (host.useGpu) host.gpuFrame(dt); else if (host.painter === "bmp") host.paintBmp(); else cv.requestPaint()
     }
   }
