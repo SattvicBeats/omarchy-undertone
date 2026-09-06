@@ -38,6 +38,9 @@ a 32-band log spectrum (40 Hz–16 kHz), the strongest tone in each ear, and the
 - **Lava** — plate heat from bass energy, brightness from loudness, hits shove the blobs
 - **Flow** — particle speed from mid/high energy, hits accelerate
 - **Spectrum** — 32 bars with peak hold, left-tone colour low, right-tone colour high
+- **Cymatics** (default) — a round plate driven by the two measured ear tones: sand settles on the
+  nodal lines of the combined standing wave; nodal diameters rise with pitch; sharpness follows
+  loudness; the two plates beat against each other at the measured beat; hits shake the grain
 
 Silence → still. Clips you add drive them exactly the same way, because they are measured
 from the same output.
@@ -72,7 +75,7 @@ The visual runs fullscreen on every monitor; any key or mouse movement closes it
     BarWidget.qml        bar pill
     Visual.qml           visual host: field + lava as GPU fragment shaders, flow via JS
     visual.js            the three visual models ported from the web instrument (blob physics, flow, JS fallback)
-    shaders/*.frag       GLSL sources; *.frag.qsb are the baked Qt shaders (qsb --glsl "100 es,120,150" --hlsl 50 --msl 12)
+    shaders/*.frag       GLSL sources (field, lava, cymatics); *.frag.qsb are the baked Qt shaders (qsb --glsl "100 es,120,150" --hlsl 50 --msl 12)
     engine/gc_engine.py  synthesis + JSON-line control protocol
     engine/data.json     scenes / bands / rhythms / breaths (shared with the web app)
 

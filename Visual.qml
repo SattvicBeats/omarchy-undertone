@@ -22,7 +22,8 @@ Item {
   property bool ctxOk: false
   property string painter: "bmp"       // JS path for Flow / fallback: "bmp" (Image from data URL) | "rects" (Canvas fillRect)
   property bool gpu: true              // field + lava as fragment shaders at native resolution
-  readonly property bool useGpu: gpu && (model === 0 || model === 1)
+  readonly property bool useGpu: gpu && (model === 0 || model === 1 || model === 4)
+  property real hitLevel: 0
   property real shaderTime: 0
   // live analysis from the engine (Service pushes these ~23x/s)
   property real energy: 0
@@ -49,7 +50,7 @@ Item {
   readonly property int bw: useGpu ? 160 : (painter === "rects" ? Math.min(bufferWidth, 160) : bufferWidth)
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
 
-  function pulse(a) { V.hit(a) }
+  function pulse(a) { V.hit(a); hitLevel = Math.max(hitLevel, a) }
   function resetVisual() { V.resetVis() }
 
   onColLChanged: V.setPalette(colL, colR, colF)
@@ -105,11 +106,30 @@ Item {
       }
     }
   }
+  ShaderEffect {
+    id: cymFx
+    anchors.fill: parent
+    visible: host.useGpu && host.model === 4
+    property real time: host.shaderTime
+    property real fL: host.fL
+    property real fR: host.fR
+    property real aspect: width / Math.max(1, height)
+    property real energy: host.energy
+    property real beatPhase: host.beatPhase
+    property real hit: host.hitLevel
+    property real lo: host.lo
+    property color colL: host.colL
+    property color colR: host.colR
+    property color colF: host.colF
+    fragmentShader: Qt.resolvedUrl("shaders/cymatics.frag.qsb")
+    onStatusChanged: if (status === ShaderEffect.Error) { host.lastError = "cymatics shader: " + log; host.gpu = false }
+  }
   function gpuFrame(dt) {
     host.paints++
+    host.hitLevel *= Math.pow(0.02, dt)
     if (V.bufferSize()[0] !== host.bw || V.bufferSize()[1] !== host.bh) V.useOwnBuffer(host.bw, host.bh)
-    if (host.model === 0) { V.tickFlash(dt); host.shaderTime += dt }
-    else lavaFx.setBlobs(V.stepLavaOnly(dt))
+    if (host.model === 1) lavaFx.setBlobs(V.stepLavaOnly(dt))
+    else { V.tickFlash(dt); host.shaderTime += dt }
   }
 
   // model 3: Spectrum — 32 log bands, left-tone colour low, right-tone colour high, peak hold
@@ -213,5 +233,5 @@ Item {
   }
   onPainterChanged: { cv.img = null; im.ready = false }
   onRunningChanged: if (!running) cv.lastMs = 0
-  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback, imageStatus: im.status, gpu: useGpu, fieldShader: fieldFx.status, lavaShader: lavaFx.status } }
+  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback, imageStatus: im.status, gpu: useGpu, fieldShader: fieldFx.status, lavaShader: lavaFx.status, cymaticsShader: cymFx.status } }
 }
