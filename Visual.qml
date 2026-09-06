@@ -16,6 +16,10 @@ Item {
   property bool running: true
   property int fps: 30
   property int bufferWidth: 160
+  property int paints: 0
+  property int ticks: 0
+  property string lastError: ""
+  property bool ctxOk: false
 
   readonly property int bw: bufferWidth
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
@@ -48,10 +52,14 @@ Item {
     onHeightChanged: img = null
 
     onPaint: {
-      var ctx = getContext("2d")
-      if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); V.setup(img) }
-      V.frame(t, 1 / host.fps)
-      ctx.putImageData(img, 0, 0)
+      host.paints++
+      try {
+        var ctx = getContext("2d")
+        host.ctxOk = !!ctx
+        if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); V.setup(img) }
+        V.frame(t, 1 / host.fps)
+        ctx.putImageData(img, 0, 0)
+      } catch (e) { host.lastError = String(e) }
     }
   }
 
@@ -61,8 +69,9 @@ Item {
     running: host.running && host.visible && host.width > 0
     onTriggered: {
       var now = Date.now(); var dt = cv.lastMs ? Math.min(0.1, (now - cv.lastMs) / 1000) : 1 / host.fps; cv.lastMs = now
-      cv.t += dt; cv.requestPaint()
+      cv.t += dt; host.ticks++; cv.requestPaint()
     }
   }
   onRunningChanged: if (!running) cv.lastMs = 0
+  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available } }
 }
