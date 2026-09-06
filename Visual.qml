@@ -20,6 +20,9 @@ Item {
   property int ticks: 0
   property string lastError: ""
   property bool ctxOk: false
+  property string painter: "rects"     // "imagedata" | "rects"
+  property var probe: null
+  property var readback: null
 
   readonly property int bw: bufferWidth
   readonly property int bh: Math.max(40, Math.round(bw * Math.max(1, height) / Math.max(1, width)))
@@ -56,9 +59,16 @@ Item {
       try {
         var ctx = getContext("2d")
         host.ctxOk = !!ctx
-        if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); V.setup(img) }
-        V.frame(t, 1 / host.fps)
-        ctx.putImageData(img, 0, 0)
+        if (host.painter === "imagedata") {
+          if (!img || img.width !== width || img.height !== height) { img = ctx.createImageData(width, height); V.setup(img) }
+          V.frame(t, 1 / host.fps)
+          ctx.putImageData(img, 0, 0)
+        } else {
+          if (!img || img.width !== width || img.height !== height) { V.useOwnBuffer(width, height); img = { width: width, height: height } }
+          V.frame(t, 1 / host.fps)
+          V.paintRects(ctx)
+        }
+        if ((host.paints & 31) === 0) { host.probe = V.probe(); var rb = ctx.getImageData(0, 0, 1, 1); host.readback = rb && rb.data ? [rb.data[0] | 0, rb.data[1] | 0, rb.data[2] | 0, rb.data[3] | 0] : null }
       } catch (e) { host.lastError = String(e) }
     }
   }
@@ -72,6 +82,7 @@ Item {
       cv.t += dt; host.ticks++; cv.requestPaint()
     }
   }
+  onPainterChanged: cv.img = null
   onRunningChanged: if (!running) cv.lastMs = 0
-  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available } }
+  function diag() { return { w: Math.round(width), h: Math.round(height), bw: bw, bh: bh, running: running, visible: visible, ticks: ticks, paints: paints, ctxOk: ctxOk, err: lastError, avail: cv.available, painter: painter, bufferPixel: probe, canvasPixel: readback } }
 }

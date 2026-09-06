@@ -92,6 +92,26 @@ function drawFlow(t, dt) {
   });
 }
 
+// Rect painter: reads the buffer back and paints it with fillRect, so the pixels
+// never depend on ImageData.data being a live view. Merges horizontal runs of
+// identical colour (field/lava have long runs; flow is mostly background).
+function paintRects(ctx) {
+  var p = 0, y, x, x0, r, g, b, key, last;
+  for (y = 0; y < FH; y++) {
+    x0 = 0; last = -1;
+    for (x = 0; x < FW; x++, p += 4) {
+      r = d[p] | 0; g = d[p + 1] | 0; b = d[p + 2] | 0; key = (r << 16) | (g << 8) | b;
+      if (key !== last) {
+        if (last >= 0) { ctx.fillStyle = "#" + ("000000" + last.toString(16)).slice(-6); ctx.fillRect(x0, y, x - x0, 1); }
+        last = key; x0 = x;
+      }
+    }
+    ctx.fillStyle = "#" + ("000000" + last.toString(16)).slice(-6); ctx.fillRect(x0, y, FW - x0, 1);
+  }
+}
+function probe() { return d ? [d[0] | 0, d[1] | 0, d[2] | 0, d[3] | 0] : null }
+function useOwnBuffer(w, h) { FW = w; FH = h; d = new Array(w * h * 4); for (var i = 0; i < d.length; i++) d[i] = 0; img = { width: w, height: h, data: d }; resetVis(); }
+
 // Host calls frame(t, dt) then putImageData(img).
 function frame(t, dt) {
   if (!img) return;
