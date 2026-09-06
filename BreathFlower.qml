@@ -12,20 +12,23 @@ Item {
   property color ink: "#E8E4D9"
   property bool compact: false      // small corner version for the panel strip
   readonly property real d: Math.min(width, height)
+  clip: true
 
   Item {
     anchors.centerIn: parent
-    width: root.d; height: root.d
+    anchors.verticalCenterOffset: -root.d * 0.06
+    width: root.d * 0.9; height: root.d * 0.9
     rotation: root.level * 60
     Behavior on rotation { NumberAnimation { duration: 120 } }
     Repeater {
       model: 6
       delegate: Rectangle {
         required property int index
-        readonly property real open: 0.18 + 0.32 * root.level
-        width: root.d * open; height: width; radius: width / 2
-        x: root.d / 2 - width / 2 + Math.cos(index * Math.PI / 3) * root.d * (0.06 + 0.22 * root.level)
-        y: root.d / 2 - height / 2 + Math.sin(index * Math.PI / 3) * root.d * (0.06 + 0.22 * root.level)
+        readonly property real open: 0.18 + 0.20 * root.level        // diameter fraction: 0.18..0.38
+        readonly property real dd: root.d * 0.9
+        width: dd * open; height: width; radius: width / 2
+        x: dd / 2 - width / 2 + Math.cos(index * Math.PI / 3) * dd * (0.05 + 0.22 * root.level)   // offset + radius ≤ 0.46 dd
+        y: dd / 2 - height / 2 + Math.sin(index * Math.PI / 3) * dd * (0.05 + 0.22 * root.level)
         color: Qt.rgba(root.petal.r, root.petal.g, root.petal.b, 0.28 + 0.22 * root.level)
         border.width: 1; border.color: Qt.rgba(root.petal2.r, root.petal2.g, root.petal2.b, 0.35)
         Behavior on width { NumberAnimation { duration: 90 } }
@@ -33,7 +36,7 @@ Item {
         Behavior on y { NumberAnimation { duration: 90 } }
       }
     }
-    Rectangle { anchors.centerIn: parent; width: root.d * (0.10 + 0.10 * root.level); height: width; radius: width / 2; color: Qt.rgba(root.petal2.r, root.petal2.g, root.petal2.b, 0.55) }
+    Rectangle { anchors.centerIn: parent; width: root.d * 0.9 * (0.10 + 0.10 * root.level); height: width; radius: width / 2; color: Qt.rgba(root.petal2.r, root.petal2.g, root.petal2.b, 0.55) }
   }
   Column {
     anchors.horizontalCenter: parent.horizontalCenter
