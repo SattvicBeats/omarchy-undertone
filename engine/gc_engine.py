@@ -93,7 +93,7 @@ def prepare_om(path, target_f0):
     n2 = int(len(mono) / ratio)
     x = np.interp(np.linspace(0, len(mono) - 1, n2), np.arange(len(mono)), mono).astype(np.float32)
     x = x / (np.abs(x).max() + 1e-6)
-    if len(x) < 6.5 * SR: x = sustain_om(x, f0=target_f0)      # short TTS takes: hold the vowel and the hum ourselves
+    if os.environ.get("UNDERTONE_OM_HOLD") == "1" and len(x) < 6.5 * SR: x = sustain_om(x, f0=target_f0)   # opt-in only
     return x, f0, None
 
 def _brightness(seg):

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "bharat.undertone",
   "name": "Undertone",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "author": "Bharat / sworn.legal",
   "license": "MIT",
   "description": "Native binaural-beat instrument: hard-L/R beat, tanpura drone, Hindustani taals, noise colours, weather layers, breath pacer, sleep timer, Chladni-plate cymatics from a solved free-edge plate, spectrum/field/lava/flow visuals, fullscreen screensaver. No browser, no network. Audio via PipeWire.",
