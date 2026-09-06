@@ -1,11 +1,12 @@
 import QtQuick
-import "visual.js" as V
+import "visual.js" as VL
 
 // One buffer, three models, same 160-px resolution the web instrument paints.
 // The Canvas is exactly buffer-sized; a Scale transform stretches it to fill
 // this item, so the GPU does the upscaling (linear-filtered, like the web).
 Item {
   id: host
+  readonly property var V: VL.create()      // this visual's own model state
   property real beat: 10
   property real base: 196
   property int model: 0            // 0 field · 1 lava · 2 flow

@@ -187,7 +187,7 @@ Item {
     function screensaver(): void { root.openSaver() }
     function painter(mode: string): void { root.painter = String(mode) }
     function palette(name: string): void { root.palette = String(name) }
-    function diag(): string { return JSON.stringify({ version: "0.7.0", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
+    function diag(): string { return JSON.stringify({ version: "0.7.1", panel: panelVisual.diag(), saverOpen: root.saverOpen, saver: root.saverDiag, tables: !!(root.tables && root.tables.scenes && root.tables.scenes.length) }) }
     function clip(path: string): void { root.addClip(path) }
     function clips(): string { return JSON.stringify(root.clips) }
     function modes(): string {
@@ -307,7 +307,7 @@ Item {
           breathLevel: root.breathPhases ? root.breathLevel : null
             Connections { target: root; function onAudioChanged() { saverVisual.setAudio(root.audio, root.spectrum); saverVisual.setModeAmps(root.modeAmps); saverVisual.setWave(root.wave[0], root.wave[1], root.wave[2]) } function onPlateMsgChanged() { if (root.plateMsg) saverVisual.setPlate(root.plateMsg) } }
             Component.onCompleted: if (root.plateMsg) setPlate(root.plateMsg)
-          bufferWidth: 320
+          bufferWidth: 240
           fps: 30
         }
         Connections { target: root; function onHit(amp) { saverVisual.pulse(amp) } }
