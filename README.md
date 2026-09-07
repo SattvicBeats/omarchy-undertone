@@ -55,3 +55,19 @@ Shaders are GLSL 440 baked with `qsb --glsl "100 es,120,150" --hlsl 50 --msl 12`
 
 Web sibling: [Ground Control](https://groundcontrol.sworn.legal/). Plate theory after Leissa,
 *Vibration of Plates* (1969). Omarchy by 37signals. MIT.
+
+## Install
+
+```sh
+omarchy plugin add https://github.com/SattvicBeats/omarchy-undertone.git --enable
+```
+
+## Remove
+
+```sh
+omarchy plugin remove bharat.undertone
+```
+
+## Dependencies and permissions
+
+Undertone runs unsandboxed inside the Omarchy shell, like every plugin. It starts one local Python process (numpy) as the audio engine and opens a PipeWire playback stream. Om voice files and audio clips are read from `~/.local/share/undertone/` — nothing is bundled, downloaded, or sent anywhere. No network access, no accounts, no telemetry. It writes only its own settings under `~/.config/` and never modifies other configuration.
